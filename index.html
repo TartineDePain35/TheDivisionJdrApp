@@ -251,7 +251,7 @@
 
           <div class="quick-nav">
             <button id="inventoryBtn" class="btn btn-secondary">Inventaire</button>
-            <button class="btn btn-secondary">Compétences</button>
+            <button id="skillsBtn" class="btn btn-secondary">Compétences</button>
             <button class="btn btn-secondary">Réseau d'attributs</button>
             <button class="btn btn-secondary">Talents</button>
             <button class="btn btn-secondary">Messages privés</button>
@@ -271,6 +271,49 @@
             <ul id="inventoryList" class="item-list"></ul>
 
             <button id="addInventoryItemBtn" class="btn btn-secondary inventory-add-btn">+ Ajouter un objet</button>
+          </article>
+        </div>
+
+        <div id="skillsView" class="hidden">
+          <article class="dashboard-card skills-card">
+            <h3>Compétences</h3>
+            <p class="step-help">Attribuez les points restants aux caractéristiques physiques de l’agent.</p>
+            <div class="reserve-box">Points restants : <strong id="skillsReserveCount">0</strong></div>
+
+            <div class="attribute-row">
+              <div>
+                <div class="attribute-title">Rapidité</div>
+                <div class="attribute-note">Au combat, la rapidité sert à déterminer l'initiative et l'ordre d'action.</div>
+              </div>
+              <div class="attribute-controls">
+                <button type="button" class="icon-btn" data-stat="speed">+</button>
+                <span id="speedSkillValue">1</span>
+              </div>
+            </div>
+
+            <div class="attribute-row">
+              <div>
+                <div class="attribute-title">Résilience</div>
+                <div class="attribute-note">La résilience représente le sang-froid et l'aplomb face aux situations tendues.</div>
+              </div>
+              <div class="attribute-controls">
+                <button type="button" class="icon-btn" data-stat="resilience">+</button>
+                <span id="resilienceSkillValue">1</span>
+              </div>
+            </div>
+
+            <div class="attribute-row">
+              <div>
+                <div class="attribute-title">Vigueur</div>
+                <div class="attribute-note">La vigueur s'attache à l'endurance et à la résistance naturelle face aux blessures.</div>
+              </div>
+              <div class="attribute-controls">
+                <button type="button" class="icon-btn" data-stat="vigor">+</button>
+                <span id="vigorSkillValue">1</span>
+              </div>
+            </div>
+
+            <button id="saveSkillsBtn" type="button" class="btn btn-primary">Valider les compétences</button>
           </article>
         </div>
       </section>

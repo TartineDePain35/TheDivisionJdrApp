@@ -20,12 +20,16 @@ const createAgentModal = document.getElementById('createAgentModal');
 const activateAgentBtn = document.getElementById('activateAgentBtn');
 const dashboardView = document.getElementById('dashboardView');
 const inventoryView = document.getElementById('inventoryView');
+const skillsView = document.getElementById('skillsView');
 const inventoryBtn = document.getElementById('inventoryBtn');
+const skillsBtn = document.getElementById('skillsBtn');
 const inventoryList = document.getElementById('inventoryList');
 const inventoryCapacityLabel = document.getElementById('inventoryCapacity');
 const inventoryWeight = document.getElementById('inventoryWeight');
 const inventoryFill = document.getElementById('inventoryFill');
 const addInventoryItemBtn = document.getElementById('addInventoryItemBtn');
+const saveSkillsBtn = document.getElementById('saveSkillsBtn');
+const skillsReserveCount = document.getElementById('skillsReserveCount');
 const deleteItemModal = document.getElementById('deleteItemModal');
 const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
@@ -88,6 +92,14 @@ let selectedTalent = null;
 let currentAgent = null;
 let pendingDeleteIndex = null;
 let weaponsData = [];
+let skillsState = {
+  reserve: 0,
+  stats: {
+    speed: 1,
+    resilience: 1,
+    vigor: 1,
+  },
+};
 
 const EFFECT_ICONS = {
   blessure: '🩸',
@@ -551,15 +563,80 @@ function openInventoryScreen() {
   if (!currentAgent) return;
   dashboardView.classList.add('hidden');
   inventoryView.classList.remove('hidden');
+  skillsView?.classList.add('hidden');
   heroMission.textContent = 'Inventaire';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
   renderInventory();
 }
 
+function openSkillsScreen() {
+  if (!currentAgent) return;
+  initializeSkillsState();
+  dashboardView.classList.add('hidden');
+  inventoryView.classList.add('hidden');
+  skillsView?.classList.remove('hidden');
+  heroMission.textContent = 'Compétences';
+  if (logoutBtn) logoutBtn.classList.remove('hidden');
+  if (homeBtn) homeBtn.classList.remove('hidden');
+  renderSkillsScreen();
+}
+
+function initializeSkillsState() {
+  const baseStats = currentAgent?.stats || { speed: 1, resilience: 1, vigor: 1 };
+  skillsState = {
+    reserve: Number(currentAgent?.availableStatsPoints ?? 0),
+    stats: {
+      speed: Number(baseStats.speed ?? 1),
+      resilience: Number(baseStats.resilience ?? 1),
+      vigor: Number(baseStats.vigor ?? 1),
+    },
+  };
+}
+
+function renderSkillsScreen() {
+  if (!skillsReserveCount) return;
+  skillsReserveCount.textContent = String(skillsState.reserve);
+  ['speed', 'resilience', 'vigor'].forEach((stat) => {
+    const element = document.getElementById(`${stat}SkillValue`);
+    if (element) {
+      element.textContent = String(skillsState.stats[stat]);
+    }
+  });
+  updateSkillsButtons();
+}
+
+function updateSkillsButtons() {
+  const plusButtons = Array.from(document.querySelectorAll('#skillsView [data-stat]'));
+  plusButtons.forEach((button) => {
+    button.disabled = skillsState.reserve <= 0;
+  });
+}
+
+function changeSkillStat(stat) {
+  if (skillsState.reserve <= 0) return;
+  skillsState.stats[stat] += 1;
+  skillsState.reserve -= 1;
+  renderSkillsScreen();
+}
+
+async function saveSkillsAllocation() {
+  if (!currentAgent) return;
+  currentAgent.stats = {
+    ...currentAgent.stats,
+    ...skillsState.stats,
+  };
+  currentAgent.availableStatsPoints = skillsState.reserve;
+  await persistCurrentAgent();
+  showToast('Compétences mises à jour.');
+  renderAgent(currentAgent);
+  openDashboardView();
+}
+
 function openDashboardView() {
   dashboardView.classList.remove('hidden');
   inventoryView.classList.add('hidden');
+  skillsView?.classList.add('hidden');
   heroMission.textContent = 'Tableau de bord de l’Aventure';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.add('hidden');
@@ -969,6 +1046,16 @@ wizardBack.addEventListener('click', () => {
 });
 
 inventoryBtn.addEventListener('click', openInventoryScreen);
+if (skillsBtn) skillsBtn.addEventListener('click', openSkillsScreen);
+if (saveSkillsBtn) saveSkillsBtn.addEventListener('click', saveSkillsAllocation);
+skillsView?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-stat]');
+  if (!button) return;
+  const stat = button.dataset.stat;
+  if (stat) {
+    changeSkillStat(stat);
+  }
+});
 addInventoryItemBtn.addEventListener('click', openAddItemModal);
 if (homeBtn) {
   homeBtn.addEventListener('click', openDashboardView);
