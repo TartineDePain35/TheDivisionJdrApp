@@ -1,0 +1,8 @@
+[
+  {
+    "type": "lésion",
+    "name": "Blessure handicapante",
+    "description": "L'agent souffre d'une vilaine blessure qui entrave ses gestes et ses mouvements. Tout groupement de dés attachés aux attributs Dextérité et Technique est réduit de 1D",
+    "duration": "Jusqu'à la fin de la mission"
+  }
+]

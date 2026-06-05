@@ -1,0 +1,13 @@
+{
+  "name": "division-adventure",
+  "version": "1.0.0",
+  "description": "Plateforme web mobile RPG inspirée de The Division avec stockage local JSON des agents.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.4",
+    "sql.js": "^1.8.0"
+  }
+}

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Division Adventure</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="brand-bar">
+      <div class="brand-logo">DIVISION</div>
+      <button id="logoutBtn" class="btn btn-tertiary btn-icon btn-icon-sm hidden" aria-label="Déconnexion">⎋</button>
+    </header>
+
+    <main>
+      <section id="landing" class="page active-page">
+        <div class="hero-card">
+          <div class="hero-title">Bienvenue Agent</div>
+          <p class="hero-text">Connectez-vous ou créez un nouvel agent pour démarrer votre mission.</p>
+          <div class="form-card">
+            <form id="loginForm">
+              <label for="agentName">Nom de l’agent</label>
+              <input id="agentName" name="agentName" type="text" placeholder="Ex: Nova" autocomplete="off" required />
+
+              <label for="agentPassword">Mot de passe</label>
+              <input id="agentPassword" name="agentPassword" type="password" placeholder="••••••••" autocomplete="current-password" required />
+
+              <button type="submit" class="btn btn-primary">Se connecter</button>
+            </form>
+
+            <button id="createAgentBtn" class="btn btn-secondary">Créer un nouvel agent</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="createAgent" class="page">
+        <div class="hero-card">
+          <div class="hero-title">Création d’un agent</div>
+          <p class="hero-text">Suivez les étapes pour construire un agent cohérent, de son histoire à ses talents.</p>
+          <div class="wizard-card">
+            <div class="wizard-breadcrumb" id="wizardBreadcrumb"></div>
+            <nav class="wizard-step-nav" id="wizardStepNav"></nav>
+
+            <div class="wizard-content" id="wizardContent">
+              <div class="wizard-step active-step" data-step="1">
+                <h3>1 · Informations civiles</h3>
+                <label for="agentLastName">Nom</label>
+                <input id="agentLastName" type="text" autocomplete="off" placeholder="Ex: Dupont" />
+
+                <label for="agentFirstName">Prénom</label>
+                <input id="agentFirstName" type="text" autocomplete="off" placeholder="Ex: Lucas" />
+
+                <label for="agentAge">Âge</label>
+                <input id="agentAge" type="number" min="16" max="100" placeholder="Ex: 29" />
+
+                <label for="agentSex">Sexe</label>
+                <select id="agentSex">
+                  <option value="">Sélectionnez</option>
+                  <option value="Masculin">Masculin</option>
+                  <option value="Féminin">Féminin</option>
+                </select>
+              </div>
+
+              <div class="wizard-step" data-step="2">
+                <h3>2 · Couverture avant activation</h3>
+                <label for="agentProfession">Profession</label>
+                <input id="agentProfession" type="text" autocomplete="off" placeholder="Ex: Analyste tactique" />
+
+                <label for="agentFamilyStatus">Situation familiale</label>
+                <select id="agentFamilyStatus">
+                  <option value="">Sélectionnez</option>
+                  <option value="Célibataire">Célibataire</option>
+                  <option value="En couple">En couple</option>
+                </select>
+
+                <label for="agentChildren">Enfants</label>
+                <select id="agentChildren">
+                  <option value="">Sélectionnez</option>
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                  <option value="7">7</option>
+                  <option value="8">8</option>
+                  <option value="9">9</option>
+                  <option value="10">10</option>
+                </select>
+              </div>
+
+              <div class="wizard-step" data-step="3">
+                <h3>3 · Caractéristiques</h3>
+                <p class="step-help">Attribuez les points, puis passez à l’étape suivante quand la réserve est vide.</p>
+                <div class="reserve-box">Points restants : <strong id="statReserve">2</strong></div>
+                <div class="attribute-row">
+                  <div>
+                    <div class="attribute-title">Rapidité</div>
+                    <div class="attribute-note">Au combat, la rapidité sert à déterminer l'initiative et l'ordre d'action.</div>
+                  </div>
+                  <div class="attribute-controls">
+                    <button type="button" class="icon-btn" data-attr="speed" data-action="decrease">-</button>
+                    <span id="speedValue">1</span>
+                    <button type="button" class="icon-btn" data-attr="speed" data-action="increase">+</button>
+                  </div>
+                </div>
+
+                <div class="attribute-row">
+                  <div>
+                    <div class="attribute-title">Résilience</div>
+                    <div class="attribute-note">La résilience représente le sang-froid et l'aplomb face aux situations tendues.</div>
+                  </div>
+                  <div class="attribute-controls">
+                    <button type="button" class="icon-btn" data-attr="resilience" data-action="decrease">-</button>
+                    <span id="resilienceValue">1</span>
+                    <button type="button" class="icon-btn" data-attr="resilience" data-action="increase">+</button>
+                  </div>
+                </div>
+
+                <div class="attribute-row">
+                  <div>
+                    <div class="attribute-title">Vigueur</div>
+                    <div class="attribute-note">La vigueur s'attache à l'endurance et à la résistance naturelle face aux blessures.</div>
+                  </div>
+                  <div class="attribute-controls">
+                    <button type="button" class="icon-btn" data-attr="vigor" data-action="decrease">-</button>
+                    <span id="vigorValue">1</span>
+                    <button type="button" class="icon-btn" data-attr="vigor" data-action="increase">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="wizard-step" data-step="4">
+                <h3>4 · Attributs</h3>
+                <p class="step-help">Les attributs servent à restituer les prédispositions et capacités innées d'un agent.</p>
+                <div class="reserve-box">Points restants : <strong id="attrReserve">1</strong></div>
+
+                <div class="attribute-row">
+                  <div>
+                    <div class="attribute-title">Conscience</div>
+                    <div class="attribute-note">Affinité avec l'environnement qui vous entoure.</div>
+                  </div>
+                  <div class="attribute-controls">
+                    <button type="button" class="icon-btn" data-attr="conscience" data-action="decrease">-</button>
+                    <span id="conscienceValue">1</span>
+                    <button type="button" class="icon-btn" data-attr="conscience" data-action="increase">+</button>
+                  </div>
+                </div>
+
+                <div class="attribute-row">
+                  <div>
+                    <div class="attribute-title">Dextérité</div>
+                    <div class="attribute-note">Naturellement précis et physique.</div>
+                  </div>
+                  <div class="attribute-controls">
+                    <button type="button" class="icon-btn" data-attr="dexterity" data-action="decrease">-</button>
+                    <span id="dexterityValue">1</span>
+                    <button type="button" class="icon-btn" data-attr="dexterity" data-action="increase">+</button>
+                  </div>
+                </div>
+
+                <div class="attribute-row">
+                  <div>
+                    <div class="attribute-title">Technique</div>
+                    <div class="attribute-note">À l'aise avec les technologies, le corps humain.</div>
+                  </div>
+                  <div class="attribute-controls">
+                    <button type="button" class="icon-btn" data-attr="technique" data-action="decrease">-</button>
+                    <span id="techniqueValue">1</span>
+                    <button type="button" class="icon-btn" data-attr="technique" data-action="increase">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="wizard-step" data-step="5">
+                <h3>5 · Talents</h3>
+                <p class="step-help">Balayez les talents et sélectionnez celui qui correspond le mieux à votre agent.</p>
+                <div class="carousel-shell">
+                  <button type="button" id="talentPrev" class="icon-btn carousel-btn">‹</button>
+                  <div class="talent-card" id="talentCard">
+                    <div class="talent-label">Talent</div>
+                    <h4 id="talentTitle"></h4>
+                    <p id="talentDescription"></p>
+                  </div>
+                  <button type="button" id="talentNext" class="icon-btn carousel-btn">›</button>
+                </div>
+                <button type="button" id="chooseTalentBtn" class="btn btn-primary">Choisir ce talent</button>
+              </div>
+
+              <div class="wizard-step" data-step="6">
+                <h3>6 · Background</h3>
+                <label for="agentStory">Histoire</label>
+                <textarea id="agentStory" rows="6" maxlength="500" placeholder="Racontez la vie, le passé et les motivations de votre agent."></textarea>
+                <div class="char-count"><span id="storyCount">0</span>/500</div>
+              </div>
+
+              <div class="wizard-step" data-step="7">
+                <h3>7 · Validation</h3>
+                <label for="agentWizardPassword">Mot de passe</label>
+                <input id="agentWizardPassword" type="password" autocomplete="new-password" placeholder="••••••••" />
+              </div>
+            </div>
+
+            <div class="wizard-actions">
+              <button type="button" id="wizardBack" class="btn btn-tertiary">Retour</button>
+              <button type="button" id="wizardNext" class="btn btn-primary" disabled>Suivant</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="mainPage" class="page">
+        <div class="main-header">
+          <div class="agent-top">
+            <div>
+              <div class="hero-title" id="heroName">Agent</div>
+              <div class="hero-subtitle" id="heroMission">Tableau de bord de l’Aventure</div>
+            </div>
+            <div class="agent-status-icons">
+              <div class="status-badge heart-badge">
+                <span class="badge-icon">♥</span>
+                <span id="heroLife">100%</span>
+              </div>
+              <div class="status-badge stats-badge">
+                <span class="badge-icon">💪</span>
+                <span id="heroStatsPoints">0</span>
+              </div>
+              <div class="status-badge attrs-badge">
+                <span class="badge-icon">🧠</span>
+                <span id="heroAttrPoints">0</span>
+              </div>
+            </div>
+            <button id="homeBtn" class="btn btn-tertiary hidden" aria-label="Retour au tableau de bord">Retour tableau de bord</button>
+          </div>
+        </div>
+
+        <div id="dashboardView">
+          <div class="dashboard-grid">
+            <article class="dashboard-card mission-card">
+              <h3>Mission active</h3>
+              <p id="missionDescription">Préparez votre équipement et partez en exploration. Vous êtes le dernier rempart.</p>
+            </article>
+
+            <article class="dashboard-card effects-card">
+              <h3>Lésions et effets</h3>
+              <div id="agentEffects" class="effects-grid"></div>
+            </article>
+          </div>
+
+          <div class="quick-nav">
+            <button id="inventoryBtn" class="btn btn-secondary">Inventaire</button>
+            <button class="btn btn-secondary">Compétences</button>
+            <button class="btn btn-secondary">Réseau d'attributs</button>
+            <button class="btn btn-secondary">Talents</button>
+            <button class="btn btn-secondary">Messages privés</button>
+          </div>
+        </div>
+
+        <div id="inventoryView" class="hidden">
+          <article class="dashboard-card inventory-card">
+            <h3>Inventaire</h3>
+            <div class="inventory-summary">
+              <div class="stat-row">
+                <span>Remplissage</span>
+                <strong id="inventoryFill">0%</strong>
+              </div>
+            </div>
+
+            <ul id="inventoryList" class="item-list"></ul>
+
+            <button id="addInventoryItemBtn" class="btn btn-secondary inventory-add-btn">+ Ajouter un objet</button>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="createAgentModal" class="modal-overlay">
+    <div class="modal-card">
+      <h2>Agent recruté</h2>
+      <p>L'agent a bien été recruté et il est prêt à être activé. Appuyez sur OK pour revenir à l'écran de connexion.</p>
+      <button id="activateAgentBtn" class="btn btn-primary">OK</button>
+    </div>
+  </div>
+
+  <div id="deleteItemModal" class="modal-overlay">
+    <div class="modal-card">
+      <h2>Supprimer l'objet</h2>
+      <p>Voulez-vous vraiment supprimer ceci de votre inventaire ?</p>
+      <div class="modal-actions">
+        <button id="confirmDeleteBtn" class="btn btn-primary">Supprimer</button>
+        <button id="cancelDeleteBtn" class="btn btn-tertiary">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="itemDetailsModal" class="modal-overlay">
+    <div class="modal-card">
+      <button type="button" id="closeItemDetailsBtn" class="modal-close">✕</button>
+      <h2>Détails de l’objet</h2>
+      <p id="itemDetailsContent">Informations détaillées disponibles prochainement.</p>
+    </div>
+  </div>
+
+  <div id="addItemModal" class="modal-overlay">
+    <div class="modal-card">
+      <button type="button" id="closeAddItemModalBtn" class="modal-close">✕</button>
+      <h2>Ajouter un objet</h2>
+      <form id="addItemForm" class="inventory-add-form">
+        <label for="addItemTypeSelect">Type d'objet à ajouter</label>
+        <select id="addItemTypeSelect" required>
+          <option value="">Sélectionnez</option>
+          <option value="Armes">Armes</option>
+          <option value="Medical">Medical</option>
+          <option value="Equipement">Equipement</option>
+          <option value="Autre">Autre</option>
+        </select>
+
+        <div id="weaponSelectorSection" class="hidden">
+          <label for="weaponTypeSelect">Type d'arme</label>
+          <select id="weaponTypeSelect">
+            <option value="">Sélectionnez</option>
+          </select>
+
+          <label for="weaponCategorySelect">Catégorie</label>
+          <select id="weaponCategorySelect" disabled>
+            <option value="">Sélectionnez</option>
+          </select>
+
+          <label for="weaponClassSelect">Classe</label>
+          <select id="weaponClassSelect" disabled>
+            <option value="">Sélectionnez</option>
+          </select>
+
+          <label for="weaponNameSelect">Nom de l'arme</label>
+          <select id="weaponNameSelect" disabled>
+            <option value="">Sélectionnez</option>
+          </select>
+        </div>
+
+        <button id="confirmAddInventoryItemBtn" type="button" class="btn btn-primary hidden" disabled>Ajouter à l'inventaire</button>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

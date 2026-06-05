@@ -1,0 +1,173 @@
+[
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Arme de poing",
+    "name": "PF45",
+    "range": "courte",
+    "damage": "4",
+    "weight": 0.8
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Arme de poing",
+    "name": "Glock 17",
+    "range": "courte",
+    "damage": "4",
+    "weight": 0.9
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Fusils mitrailleurs",
+    "name": "MP5",
+    "range": "moyenne",
+    "damage": "5",
+    "weight": 3.1
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Fusils mitrailleurs",
+    "name": "UMP-45",
+    "range": "moyenne",
+    "damage": "5",
+    "weight": 3.5
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Fusils",
+    "name": "ACR",
+    "range": "moyenne",
+    "damage": "6",
+    "weight": 3.4
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Fusils",
+    "name": "MK17",
+    "range": "moyenne",
+    "damage": "6",
+    "weight": 3.6
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Fusils d'assault",
+    "name": "AK-47",
+    "range": "moyenne",
+    "damage": "6",
+    "weight": 4.3
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Fusils d'assault",
+    "name": "MK16",
+    "range": "moyenne",
+    "damage": "6",
+    "weight": 3.8
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Fusils à pompe",
+    "name": "SASG-12",
+    "range": "courte",
+    "damage": "7",
+    "weight": 4.2
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes légères",
+    "class": "Fusils à pompe",
+    "name": "Super 90",
+    "range": "courte",
+    "damage": "7",
+    "weight": 3.9
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes lourdes",
+    "class": "Fusils de précision",
+    "name": "SOCOM M16",
+    "range": "longue",
+    "damage": "8",
+    "weight": 4.6
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes lourdes",
+    "class": "Fusils de précision",
+    "name": "SRS A1",
+    "range": "longue",
+    "damage": "8",
+    "weight": 6.8
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes lourdes",
+    "class": "Fusils mitrailleurs",
+    "name": "M60E6",
+    "range": "moyenne",
+    "damage": "7",
+    "weight": 9.0
+  },
+  {
+    "type": "Armes à feu",
+    "category": "Armes lourdes",
+    "class": "Fusils mitrailleurs",
+    "name": "L86A2",
+    "range": "moyenne",
+    "damage": "7",
+    "weight": 7.5
+  },
+  {
+    "type": "Armes de melée",
+    "category": "Corps à corps",
+    "class": "Couteaux",
+    "name": "Couteau de combat",
+    "range": "courte",
+    "damage": "3",
+    "weight": 0.4
+  },
+  {
+    "type": "Armes de melée",
+    "category": "Lancer",
+    "class": "Couteaux",
+    "name": "Couteau de lancer",
+    "range": "courte",
+    "damage": "3",
+    "weight": 0.5
+  },
+  {
+    "type": "Armes de melée",
+    "category": "Corps à corps",
+    "class": "Lame lourde",
+    "name": "Hache de combat",
+    "range": "courte",
+    "damage": "6",
+    "weight": 2.7
+  },
+  {
+    "type": "Armes de melée",
+    "category": "Corps à corps",
+    "class": "Poids lourd",
+    "name": "Masse",
+    "range": "courte",
+    "damage": "5",
+    "weight": 2.3
+  },
+  {
+    "type": "Armes de melée",
+    "category": "Corps à corps",
+    "class": "Poids léger",
+    "name": "Matraque télescopique",
+    "range": "courte",
+    "damage": "2",
+    "weight": 1.1
+  }
+]

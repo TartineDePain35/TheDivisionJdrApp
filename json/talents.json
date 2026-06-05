@@ -1,0 +1,22 @@
+[
+  {
+    "id": "phantom",
+    "title": "Ombre",
+    "description": "Se déplace silencieusement et frappe sans avertissement, idéal pour les missions discrètes."
+  },
+  {
+    "id": "guardian",
+    "title": "Gardien",
+    "description": "Protège ses alliés, encaisse les dégâts et garde une position stratégique."
+  },
+  {
+    "id": "hacker",
+    "title": "Hacker",
+    "description": "Maîtrise les dispositifs technologiques et manipule l'environnement à distance."
+  },
+  {
+    "id": "survivor",
+    "title": "Survivant",
+    "description": "Adapté aux situations extrêmes grâce à une grande résilience et une forte récupération."
+  }
+]
