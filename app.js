@@ -21,15 +21,19 @@ const activateAgentBtn = document.getElementById('activateAgentBtn');
 const dashboardView = document.getElementById('dashboardView');
 const inventoryView = document.getElementById('inventoryView');
 const skillsView = document.getElementById('skillsView');
+const attributesView = document.getElementById('attributesView');
 const inventoryBtn = document.getElementById('inventoryBtn');
 const skillsBtn = document.getElementById('skillsBtn');
+const attributesBtn = document.getElementById('attributesBtn');
 const inventoryList = document.getElementById('inventoryList');
 const inventoryCapacityLabel = document.getElementById('inventoryCapacity');
 const inventoryWeight = document.getElementById('inventoryWeight');
 const inventoryFill = document.getElementById('inventoryFill');
 const addInventoryItemBtn = document.getElementById('addInventoryItemBtn');
 const saveSkillsBtn = document.getElementById('saveSkillsBtn');
+const saveAttributesBtn = document.getElementById('saveAttributesBtn');
 const skillsReserveCount = document.getElementById('skillsReserveCount');
+const attributesReserveCount = document.getElementById('attributesReserveCount');
 const deleteItemModal = document.getElementById('deleteItemModal');
 const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
@@ -45,6 +49,18 @@ const weaponClassSelect = document.getElementById('weaponClassSelect');
 const weaponNameSelect = document.getElementById('weaponNameSelect');
 const confirmAddInventoryItemBtn = document.getElementById('confirmAddInventoryItemBtn');
 const weaponSelectorSection = document.getElementById('weaponSelectorSection');
+const medicalTypeSelect = document.getElementById('medicalTypeSelect');
+const medicalCategorySelect = document.getElementById('medicalCategorySelect');
+const medicalNameSelect = document.getElementById('medicalNameSelect');
+const medicalSelectorSection = document.getElementById('medicalSelectorSection');
+const equipmentTypeSelect = document.getElementById('equipmentTypeSelect');
+const equipmentCategorySelect = document.getElementById('equipmentCategorySelect');
+const equipmentNameSelect = document.getElementById('equipmentNameSelect');
+const equipmentSelectorSection = document.getElementById('equipmentSelectorSection');
+const otherItemName = document.getElementById('otherItemName');
+const otherItemDescription = document.getElementById('otherItemDescription');
+const otherItemWeight = document.getElementById('otherItemWeight');
+const otherSelectorSection = document.getElementById('otherSelectorSection');
 
 const wizardStepNav = document.getElementById('wizardStepNav');
 const wizardContent = document.getElementById('wizardContent');
@@ -89,15 +105,26 @@ let visitedStep = 1;
 let talents = [];
 let talentIndex = 0;
 let selectedTalent = null;
+let talentIdSelected = null;
 let currentAgent = null;
 let pendingDeleteIndex = null;
 let weaponsData = [];
+let medicalData = [];
+let equipmentData = [];
 let skillsState = {
   reserve: 0,
   stats: {
     speed: 1,
     resilience: 1,
     vigor: 1,
+  },
+};
+let attributesState = {
+  reserve: 0,
+  attributes: {
+    conscience: 1,
+    dexterity: 1,
+    technique: 1,
   },
 };
 
@@ -214,21 +241,18 @@ function createDefaultAgent(data) {
     children: data.children,
     story: data.story,
     talent: data.talent,
+    talentId: data.talentId,
     stats: data.stats,
     attributes: data.attributes,
     password: data.password,
     availableStatsPoints: 0,
     availableAttributesPoints: 0,
     lifePercent: 100,
-    activeMission: 'Explorez la zone, récupérez des ressources et améliorez votre équipement.',
+    activeMission: 'Aucune affectation en cours. Agent disponible.',
     wounds: [],
     effects: [],
-    inventoryCapacity: 100,
-    inventory: [
-      { name: 'Média-émetteur', category: 'Autres', weight: 8 },
-      { name: 'Patch tactique', category: 'Medkit', weight: 2 },
-      { name: 'Chargeur avancé', category: 'Armes légères', weight: 5 },
-    ],
+    inventoryCapacity: 30,
+    inventory: [],
   };
 }
 
@@ -314,7 +338,7 @@ function renderAgent(agent) {
     }
   }
   if (inventoryCapacityLabel) {
-    inventoryCapacityLabel.textContent = String(agent.inventoryCapacity ?? 100);
+    inventoryCapacityLabel.textContent = String(agent.inventoryCapacity ?? 30);
   }
   openDashboardView();
 }
@@ -346,8 +370,38 @@ function loadWeaponsData() {
     });
 }
 
+function loadMedicalData() {
+  if (medicalData.length) {
+    return Promise.resolve(medicalData);
+  }
+  return requestJson('/json/Equipement/medical.json')
+    .then((data) => {
+      medicalData = Array.isArray(data) ? data : [];
+      return medicalData;
+    })
+    .catch(() => {
+      medicalData = [];
+      return medicalData;
+    });
+}
+
+function loadEquipmentData() {
+  if (equipmentData.length) {
+    return Promise.resolve(equipmentData);
+  }
+  return requestJson('/json/Equipement/equipement.json')
+    .then((data) => {
+      equipmentData = Array.isArray(data) ? data : [];
+      return equipmentData;
+    })
+    .catch(() => {
+      equipmentData = [];
+      return equipmentData;
+    });
+}
+
 function resetAddItemModal() {
-  if (!addItemTypeSelect || !weaponTypeSelect || !weaponCategorySelect || !weaponClassSelect || !weaponNameSelect || !confirmAddInventoryItemBtn || !weaponSelectorSection) {
+  if (!addItemTypeSelect || !weaponTypeSelect || !weaponCategorySelect || !weaponClassSelect || !weaponNameSelect || !confirmAddInventoryItemBtn || !weaponSelectorSection || !medicalTypeSelect || !medicalCategorySelect || !medicalNameSelect || !medicalSelectorSection || !equipmentTypeSelect || !equipmentCategorySelect || !equipmentNameSelect || !equipmentSelectorSection || !otherItemName || !otherItemDescription || !otherItemWeight || !otherSelectorSection) {
     return;
   }
   addItemTypeSelect.value = '';
@@ -360,6 +414,24 @@ function resetAddItemModal() {
   weaponNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
   weaponNameSelect.disabled = true;
   weaponSelectorSection.classList.add('hidden');
+  medicalTypeSelect.innerHTML = '<option value="">Sélectionnez</option>';
+  medicalTypeSelect.disabled = true;
+  medicalCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
+  medicalCategorySelect.disabled = true;
+  medicalNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+  medicalNameSelect.disabled = true;
+  medicalSelectorSection.classList.add('hidden');
+  equipmentTypeSelect.innerHTML = '<option value="">Sélectionnez</option>';
+  equipmentTypeSelect.disabled = true;
+  equipmentCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
+  equipmentCategorySelect.disabled = true;
+  equipmentNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+  equipmentNameSelect.disabled = true;
+  equipmentSelectorSection.classList.add('hidden');
+  otherItemName.value = '';
+  otherItemDescription.value = '';
+  otherItemWeight.value = '';
+  otherSelectorSection.classList.add('hidden');
   confirmAddInventoryItemBtn.classList.add('hidden');
   confirmAddInventoryItemBtn.disabled = true;
 }
@@ -427,27 +499,126 @@ function buildWeaponNameOptions(type, category, className) {
 }
 
 function updateAddItemButtonState() {
-  if (!confirmAddInventoryItemBtn || !weaponNameSelect) return;
-  const visible = weaponNameSelect.value !== '';
+  if (!confirmAddInventoryItemBtn || !weaponNameSelect || !medicalNameSelect || !equipmentNameSelect || !otherItemName || !otherItemWeight) return;
+  const weaponVisible = weaponNameSelect.value !== '';
+  const medicalVisible = medicalNameSelect.value !== '';
+  const equipmentVisible = equipmentNameSelect.value !== '';
+  const otherVisible = otherItemName.value.trim() !== '' && otherItemWeight.value !== '' && parseFloat(otherItemWeight.value) > 0;
+  const visible = weaponVisible || medicalVisible || equipmentVisible || otherVisible;
   confirmAddInventoryItemBtn.classList.toggle('hidden', !visible);
   confirmAddInventoryItemBtn.disabled = !visible;
 }
 
+function buildMedicalTypeOptions() {
+  const types = [...new Set(medicalData.map((item) => item.type))].filter(Boolean);
+  medicalTypeSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...types.map((type) => `<option value="${type}">${type}</option>`)].join('');
+  medicalTypeSelect.disabled = false;
+  medicalCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
+  medicalCategorySelect.disabled = true;
+  medicalNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+  medicalNameSelect.disabled = true;
+  confirmAddInventoryItemBtn.classList.add('hidden');
+  confirmAddInventoryItemBtn.disabled = true;
+}
+
+function buildMedicalCategoryOptions(type) {
+  const categories = [...new Set(medicalData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
+  medicalCategorySelect.innerHTML = ['<option value="">Sélectionnez</option>', ...categories.map((category) => `<option value="${category}">${category}</option>`)].join('');
+  medicalCategorySelect.disabled = false;
+  medicalNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+  medicalNameSelect.disabled = true;
+  confirmAddInventoryItemBtn.classList.add('hidden');
+  confirmAddInventoryItemBtn.disabled = true;
+}
+
+function buildMedicalNameOptions(type, category) {
+  const names = medicalData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
+  medicalNameSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...names.map((name) => `<option value="${name}">${name}</option>`)].join('');
+  medicalNameSelect.disabled = false;
+  confirmAddInventoryItemBtn.classList.add('hidden');
+  confirmAddInventoryItemBtn.disabled = true;
+}
+
+function buildEquipmentTypeOptions() {
+  const types = [...new Set(equipmentData.map((item) => item.type))].filter(Boolean);
+  equipmentTypeSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...types.map((type) => `<option value="${type}">${type}</option>`)].join('');
+  equipmentTypeSelect.disabled = false;
+  equipmentCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
+  equipmentCategorySelect.disabled = true;
+  equipmentNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+  equipmentNameSelect.disabled = true;
+  confirmAddInventoryItemBtn.classList.add('hidden');
+  confirmAddInventoryItemBtn.disabled = true;
+}
+
+function buildEquipmentCategoryOptions(type) {
+  const categories = [...new Set(equipmentData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
+  equipmentCategorySelect.innerHTML = ['<option value="">Sélectionnez</option>', ...categories.map((category) => `<option value="${category}">${category}</option>`)].join('');
+  equipmentCategorySelect.disabled = false;
+  equipmentNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+  equipmentNameSelect.disabled = true;
+  confirmAddInventoryItemBtn.classList.add('hidden');
+  confirmAddInventoryItemBtn.disabled = true;
+}
+
+function buildEquipmentNameOptions(type, category) {
+  const names = equipmentData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
+  equipmentNameSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...names.map((name) => `<option value="${name}">${name}</option>`)].join('');
+  equipmentNameSelect.disabled = false;
+  confirmAddInventoryItemBtn.classList.add('hidden');
+  confirmAddInventoryItemBtn.disabled = true;
+}
+
 function onAddItemTypeChange() {
-  if (!weaponSelectorSection || !addItemTypeSelect) return;
+  if (!weaponSelectorSection || !medicalSelectorSection || !equipmentSelectorSection || !otherSelectorSection || !addItemTypeSelect) return;
   const selected = addItemTypeSelect.value;
   weaponSelectorSection.classList.toggle('hidden', selected !== 'Armes');
+  medicalSelectorSection.classList.toggle('hidden', selected !== 'Medical');
+  equipmentSelectorSection.classList.toggle('hidden', selected !== 'Equipement');
+  otherSelectorSection.classList.toggle('hidden', selected !== 'Autre');
+  
   if (selected === 'Armes') {
     loadWeaponsData().then(() => {
       buildWeaponTypeOptions();
     });
+  } else if (selected === 'Medical') {
+    loadMedicalData().then(() => {
+      buildMedicalTypeOptions();
+    });
+  } else if (selected === 'Equipement') {
+    loadEquipmentData().then(() => {
+      buildEquipmentTypeOptions();
+    });
+  } else if (selected === 'Autre') {
+    if (otherItemName) otherItemName.value = '';
+    if (otherItemDescription) otherItemDescription.value = '';
+    if (otherItemWeight) otherItemWeight.value = '';
+    updateAddItemButtonState();
   } else {
     weaponTypeSelect.innerHTML = '<option value="">Sélectionnez</option>';
     weaponTypeSelect.disabled = true;
     weaponCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
     weaponCategorySelect.disabled = true;
+    weaponClassSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    weaponClassSelect.disabled = true;
     weaponNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
     weaponNameSelect.disabled = true;
+    medicalTypeSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    medicalTypeSelect.disabled = true;
+    medicalCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
+    medicalCategorySelect.disabled = true;
+    medicalNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    medicalNameSelect.disabled = true;
+    equipmentTypeSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    equipmentTypeSelect.disabled = true;
+    equipmentCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
+    equipmentCategorySelect.disabled = true;
+    equipmentNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    equipmentNameSelect.disabled = true;
+    if (otherItemName) otherItemName.value = '';
+    if (otherItemDescription) otherItemDescription.value = '';
+    if (otherItemWeight) otherItemWeight.value = '';
+    otherSelectorSection.classList.add('hidden');
     confirmAddInventoryItemBtn.classList.add('hidden');
     confirmAddInventoryItemBtn.disabled = true;
   }
@@ -467,6 +638,20 @@ function onWeaponTypeChange() {
   buildWeaponCategoryOptions(selectedType);
 }
 
+function onMedicalTypeChange() {
+  const selectedType = medicalTypeSelect?.value;
+  if (!selectedType) {
+    medicalCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
+    medicalCategorySelect.disabled = true;
+    medicalNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    medicalNameSelect.disabled = true;
+    confirmAddInventoryItemBtn.classList.add('hidden');
+    confirmAddInventoryItemBtn.disabled = true;
+    return;
+  }
+  buildMedicalCategoryOptions(selectedType);
+}
+
 function onWeaponCategoryChange() {
   const selectedType = weaponTypeSelect?.value;
   const selectedCategory = weaponCategorySelect?.value;
@@ -480,6 +665,46 @@ function onWeaponCategoryChange() {
     return;
   }
   buildWeaponClassOptions(selectedType, selectedCategory);
+}
+
+function onMedicalCategoryChange() {
+  const selectedType = medicalTypeSelect?.value;
+  const selectedCategory = medicalCategorySelect?.value;
+  if (!selectedType || !selectedCategory) {
+    medicalNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    medicalNameSelect.disabled = true;
+    confirmAddInventoryItemBtn.classList.add('hidden');
+    confirmAddInventoryItemBtn.disabled = true;
+    return;
+  }
+  buildMedicalNameOptions(selectedType, selectedCategory);
+}
+
+function onEquipmentTypeChange() {
+  const selectedType = equipmentTypeSelect?.value;
+  if (!selectedType) {
+    equipmentCategorySelect.innerHTML = '<option value="">Sélectionnez</option>';
+    equipmentCategorySelect.disabled = true;
+    equipmentNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    equipmentNameSelect.disabled = true;
+    confirmAddInventoryItemBtn.classList.add('hidden');
+    confirmAddInventoryItemBtn.disabled = true;
+    return;
+  }
+  buildEquipmentCategoryOptions(selectedType);
+}
+
+function onEquipmentCategoryChange() {
+  const selectedType = equipmentTypeSelect?.value;
+  const selectedCategory = equipmentCategorySelect?.value;
+  if (!selectedType || !selectedCategory) {
+    equipmentNameSelect.innerHTML = '<option value="">Sélectionnez</option>';
+    equipmentNameSelect.disabled = true;
+    confirmAddInventoryItemBtn.classList.add('hidden');
+    confirmAddInventoryItemBtn.disabled = true;
+    return;
+  }
+  buildEquipmentNameOptions(selectedType, selectedCategory);
 }
 
 function onWeaponClassChange() {
@@ -526,9 +751,76 @@ async function addSelectedWeaponToInventory() {
   showToast(`Objet « ${weapon.name} » ajouté à l'inventaire.`);
 }
 
+async function addSelectedMedicalToInventory() {
+  if (!currentAgent || !addItemTypeSelect || !medicalTypeSelect || !medicalCategorySelect || !medicalNameSelect) return;
+  if (addItemTypeSelect.value !== 'Medical') return;
+  const selectedType = medicalTypeSelect.value;
+  const selectedCategory = medicalCategorySelect.value;
+  const selectedName = medicalNameSelect.value;
+  const medical = medicalData.find(
+    (item) =>
+      item.type === selectedType &&
+      item.category === selectedCategory &&
+      item.name === selectedName
+  );
+  if (!medical) return;
+  currentAgent.inventory = [
+    ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
+    { name: medical.name, category: medical.category, weight: Number(medical.weight), type: medical.type },
+  ];
+  renderInventory();
+  hideModal(addItemModal);
+  await persistCurrentAgent();
+  showToast(`Objet « ${medical.name} » ajouté à l'inventaire.`);
+}
+
+async function addSelectedEquipmentToInventory() {
+  if (!currentAgent || !addItemTypeSelect || !equipmentTypeSelect || !equipmentCategorySelect || !equipmentNameSelect) return;
+  if (addItemTypeSelect.value !== 'Equipement') return;
+  const selectedType = equipmentTypeSelect.value;
+  const selectedCategory = equipmentCategorySelect.value;
+  const selectedName = equipmentNameSelect.value;
+  const equipment = equipmentData.find(
+    (item) =>
+      item.type === selectedType &&
+      item.category === selectedCategory &&
+      item.name === selectedName
+  );
+  if (!equipment) return;
+  currentAgent.inventory = [
+    ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
+    { name: equipment.name, category: equipment.category, weight: Number(equipment.weight), type: equipment.type },
+  ];
+  renderInventory();
+  hideModal(addItemModal);
+  await persistCurrentAgent();
+  showToast(`Objet « ${equipment.name} » ajouté à l'inventaire.`);
+}
+
+async function addSelectedOtherToInventory() {
+  if (!currentAgent || !otherItemName || !otherItemWeight) return;
+  const name = otherItemName.value.trim();
+  const description = otherItemDescription?.value?.trim() || '';
+  const weight = parseFloat(otherItemWeight.value);
+  
+  if (!name || isNaN(weight) || weight <= 0) {
+    showToast('Veuillez saisir un nom valide et un poids supérieur à 0.');
+    return;
+  }
+  
+  currentAgent.inventory = [
+    ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
+    { name, description, weight: Number(weight), category: 'Autre' },
+  ];
+  renderInventory();
+  hideModal(addItemModal);
+  await persistCurrentAgent();
+  showToast(`Objet « ${name} » ajouté à l'inventaire.`);
+}
+
 function renderInventory() {
   if (!currentAgent) return;
-  const capacity = Number(currentAgent.inventoryCapacity ?? 100);
+  const capacity = Number(currentAgent.inventoryCapacity ?? 30);
   const items = Array.isArray(currentAgent.inventory) ? currentAgent.inventory : [];
   const weight = items.reduce((total, item) => total + (Number(item.weight) || 0), 0);
   const fillPercent = capacity > 0 ? Math.round((weight / capacity) * 100) : 0;
@@ -564,6 +856,7 @@ function openInventoryScreen() {
   dashboardView.classList.add('hidden');
   inventoryView.classList.remove('hidden');
   skillsView?.classList.add('hidden');
+  attributesView?.classList.add('hidden');
   heroMission.textContent = 'Inventaire';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
@@ -576,10 +869,24 @@ function openSkillsScreen() {
   dashboardView.classList.add('hidden');
   inventoryView.classList.add('hidden');
   skillsView?.classList.remove('hidden');
+  attributesView?.classList.add('hidden');
   heroMission.textContent = 'Compétences';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
   renderSkillsScreen();
+}
+
+function openAttributesScreen() {
+  if (!currentAgent) return;
+  initializeAttributesState();
+  dashboardView.classList.add('hidden');
+  inventoryView.classList.add('hidden');
+  skillsView?.classList.add('hidden');
+  attributesView?.classList.remove('hidden');
+  heroMission.textContent = 'Attributs';
+  if (logoutBtn) logoutBtn.classList.remove('hidden');
+  if (homeBtn) homeBtn.classList.remove('hidden');
+  renderAttributesScreen();
 }
 
 function initializeSkillsState() {
@@ -590,6 +897,18 @@ function initializeSkillsState() {
       speed: Number(baseStats.speed ?? 1),
       resilience: Number(baseStats.resilience ?? 1),
       vigor: Number(baseStats.vigor ?? 1),
+    },
+  };
+}
+
+function initializeAttributesState() {
+  const baseAttributes = currentAgent?.attributes || { conscience: 1, dexterity: 1, technique: 1 };
+  attributesState = {
+    reserve: Number(currentAgent?.availableAttributesPoints ?? 0),
+    attributes: {
+      conscience: Number(baseAttributes.conscience ?? 1),
+      dexterity: Number(baseAttributes.dexterity ?? 1),
+      technique: Number(baseAttributes.technique ?? 1),
     },
   };
 }
@@ -606,10 +925,29 @@ function renderSkillsScreen() {
   updateSkillsButtons();
 }
 
+function renderAttributesScreen() {
+  if (!attributesReserveCount) return;
+  attributesReserveCount.textContent = String(attributesState.reserve);
+  ['conscience', 'dexterity', 'technique'].forEach((attr) => {
+    const element = document.getElementById(`${attr}AttributeValue`);
+    if (element) {
+      element.textContent = String(attributesState.attributes[attr]);
+    }
+  });
+  updateAttributesButtons();
+}
+
 function updateSkillsButtons() {
   const plusButtons = Array.from(document.querySelectorAll('#skillsView [data-stat]'));
   plusButtons.forEach((button) => {
     button.disabled = skillsState.reserve <= 0;
+  });
+}
+
+function updateAttributesButtons() {
+  const plusButtons = Array.from(document.querySelectorAll('#attributesView [data-attr]'));
+  plusButtons.forEach((button) => {
+    button.disabled = attributesState.reserve <= 0;
   });
 }
 
@@ -618,6 +956,13 @@ function changeSkillStat(stat) {
   skillsState.stats[stat] += 1;
   skillsState.reserve -= 1;
   renderSkillsScreen();
+}
+
+function changeAttributeStat(attr) {
+  if (attributesState.reserve <= 0) return;
+  attributesState.attributes[attr] += 1;
+  attributesState.reserve -= 1;
+  renderAttributesScreen();
 }
 
 async function saveSkillsAllocation() {
@@ -633,10 +978,24 @@ async function saveSkillsAllocation() {
   openDashboardView();
 }
 
+async function saveAttributesAllocation() {
+  if (!currentAgent) return;
+  currentAgent.attributes = {
+    ...currentAgent.attributes,
+    ...attributesState.attributes,
+  };
+  currentAgent.availableAttributesPoints = attributesState.reserve;
+  await persistCurrentAgent();
+  showToast('Attributs mis à jour.');
+  renderAgent(currentAgent);
+  openDashboardView();
+}
+
 function openDashboardView() {
   dashboardView.classList.remove('hidden');
   inventoryView.classList.add('hidden');
   skillsView?.classList.add('hidden');
+  attributesView?.classList.add('hidden');
   heroMission.textContent = 'Tableau de bord de l’Aventure';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.add('hidden');
@@ -661,29 +1020,91 @@ async function openItemDetails(index) {
   const item = currentAgent?.inventory?.[index];
   if (!item || !itemDetailsContent) return;
 
-  await loadWeaponsData();
-  const weapon = weaponsData.find((weaponItem) => {
-    const sameName = weaponItem.name === item.name;
-    const sameType = !item.type || weaponItem.type === item.type;
-    const sameCategory = !item.category || weaponItem.category === item.category;
-    const sameClass = !item.class || weaponItem.class === item.class;
-    return sameName && sameType && sameCategory && sameClass;
-  });
+  let source = item;
+  let isWeapon = false;
+  let isMedical = false;
+  let isEquipment = false;
 
-  const source = weapon || item;
-  const details = Object.entries(source)
-    .filter(([key, value]) => value !== undefined && value !== null && key !== 'id')
-    .map(([key, value]) => {
-      const label = key
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/^./, (chr) => chr.toUpperCase());
-      return `<div class="item-detail-row"><strong>${label} :</strong> ${String(value)}</div>`;
-    })
-    .join('');
+  if (item.class || item.type === 'Armes légères' || item.category?.includes('Armes')) {
+    await loadWeaponsData();
+    const weapon = weaponsData.find((weaponItem) => {
+      const sameName = weaponItem.name === item.name;
+      const sameType = !item.type || weaponItem.type === item.type;
+      const sameCategory = !item.category || weaponItem.category === item.category;
+      const sameClass = !item.class || weaponItem.class === item.class;
+      return sameName && sameType && sameCategory && sameClass;
+    });
+    if (weapon) {
+      source = weapon;
+      isWeapon = true;
+    }
+  }
 
-  const fallback = weapon
-    ? ''
-    : '<div class="item-detail-row">Aucune information supplémentaire disponible dans le fichier armes.json.</div>';
+  if (!isWeapon && (item.range || ['Injection', 'Electronique', 'Application'].includes(item.category))) {
+    await loadMedicalData();
+    const medical = medicalData.find((medicalItem) => {
+      const sameName = medicalItem.name === item.name;
+      const sameType = !item.type || medicalItem.type === item.type;
+      const sameCategory = !item.category || medicalItem.category === item.category;
+      return sameName && sameType && sameCategory;
+    });
+    if (medical) {
+      source = medical;
+      isMedical = true;
+    }
+  }
+
+  if (!isWeapon && !isMedical && item.effect && ['Armure'].includes(item.category)) {
+    await loadEquipmentData();
+    const equipment = equipmentData.find((equipmentItem) => {
+      const sameName = equipmentItem.name === item.name;
+      const sameType = !item.type || equipmentItem.type === item.type;
+      const sameCategory = !item.category || equipmentItem.category === item.category;
+      return sameName && sameType && sameCategory;
+    });
+    if (equipment) {
+      source = equipment;
+      isEquipment = true;
+    }
+  }
+
+  let details = '';
+  let fallback = '';
+
+  if (isEquipment && source.effect) {
+    details = `
+      <div class="item-detail-row"><strong>Nom :</strong> ${sanitizeText(source.name || '—')}</div>
+      <div class="item-detail-row description-only">${sanitizeText(source.description || 'Aucune description disponible.')}</div>
+      <div class="item-detail-row"><strong>Effet :</strong> ${sanitizeText(source.effect || '—')}</div>
+      <div class="item-detail-row"><strong>Poids :</strong> ${sanitizeText(source.weight ? `${source.weight} kg` : '—')}</div>
+    `;
+  } else if (isMedical && source.range) {
+    details = `
+      <div class="item-detail-row"><strong>Nom :</strong> ${sanitizeText(source.name || '—')}</div>
+      <div class="item-detail-row"><strong>Portée :</strong> ${sanitizeText(source.range || '—')}</div>
+      <div class="item-detail-row description-only">${sanitizeText(source.description || 'Aucune description disponible.')}</div>
+      <div class="item-detail-row"><strong>Poids :</strong> ${sanitizeText(source.weight ? `${source.weight} kg` : '—')}</div>
+    `;
+  } else if (item.category === 'Autre' && item.name) {
+    details = `
+      <div class="item-detail-row"><strong>Nom :</strong> ${sanitizeText(item.name || '—')}</div>
+      ${item.description ? `<div class="item-detail-row description-only">${sanitizeText(item.description)}</div>` : ''}
+      <div class="item-detail-row"><strong>Poids :</strong> ${sanitizeText(item.weight ? `${item.weight} kg` : '—')}</div>
+    `;
+  } else if (isWeapon || (!isMedical && !isEquipment)) {
+    details = Object.entries(source)
+      .filter(([key, value]) => value !== undefined && value !== null && key !== 'id')
+      .map(([key, value]) => {
+        const label = key
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/^./, (chr) => chr.toUpperCase());
+        return `<div class="item-detail-row"><strong>${label} :</strong> ${String(value)}</div>`;
+      })
+      .join('');
+    fallback = isWeapon
+      ? ''
+      : '<div class="item-detail-row">Aucune information supplémentaire disponible dans le fichier armes.json.</div>';
+  }
 
   itemDetailsContent.innerHTML = `
     <div class="item-detail-card">
@@ -833,6 +1254,7 @@ function resetWizard() {
   currentStep = 1;
   visitedStep = 1;
   selectedTalent = null;
+  talentIdSelected = null;
   talentIndex = 0;
   reserveValues.stats = 2;
   reserveValues.attrs = 1;
@@ -936,7 +1358,7 @@ function validateStep(step) {
     return reserveValues.attrs === 0;
   }
   if (step === 5) {
-    return selectedTalent !== null;
+    return talentIdSelected !== null;
   }
   if (step === 6) {
     return agentInputs.story.value.trim().length > 0;
@@ -972,10 +1394,11 @@ function showWizardStep(step) {
 
 async function loadTalents() {
   try {
-    const data = await requestJson('/json/talents.json');
-    talents = Array.isArray(data) ? data : data.talents || [];
+    const result = await requestJson('/api/talents');
+    talents = Array.isArray(result) ? result : (result?.talents || result?.data || []);
     talentIndex = 0;
     selectedTalent = null;
+    talentIdSelected = null;
   } catch {
     talents = [];
   }
@@ -1003,6 +1426,7 @@ function navigateTalent(direction) {
 function chooseTalent() {
   if (!talents.length) return;
   selectedTalent = talents[talentIndex];
+  talentIdSelected = selectedTalent.id;
   showWizardStep(6);
 }
 
@@ -1025,6 +1449,7 @@ function getWizardData() {
       dexterity: attributeValues.dexterity,
       technique: attributeValues.technique,
     },
+    talentId: talentIdSelected,
     talent: selectedTalent,
     story: agentInputs.story.value.trim(),
     password: agentInputs.password.value,
@@ -1047,13 +1472,25 @@ wizardBack.addEventListener('click', () => {
 
 inventoryBtn.addEventListener('click', openInventoryScreen);
 if (skillsBtn) skillsBtn.addEventListener('click', openSkillsScreen);
+if (attributesBtn) attributesBtn.addEventListener('click', openAttributesScreen);
 if (saveSkillsBtn) saveSkillsBtn.addEventListener('click', saveSkillsAllocation);
+if (saveAttributesBtn) saveAttributesBtn.addEventListener('click', saveAttributesAllocation);
+
 skillsView?.addEventListener('click', (event) => {
   const button = event.target.closest('[data-stat]');
   if (!button) return;
   const stat = button.dataset.stat;
   if (stat) {
     changeSkillStat(stat);
+  }
+});
+
+attributesView?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-attr]');
+  if (!button) return;
+  const attr = button.dataset.attr;
+  if (attr) {
+    changeAttributeStat(attr);
   }
 });
 addInventoryItemBtn.addEventListener('click', openAddItemModal);
@@ -1075,8 +1512,45 @@ if (weaponClassSelect) {
 if (weaponNameSelect) {
   weaponNameSelect.addEventListener('change', updateAddItemButtonState);
 }
+if (medicalTypeSelect) {
+  medicalTypeSelect.addEventListener('change', onMedicalTypeChange);
+}
+if (medicalCategorySelect) {
+  medicalCategorySelect.addEventListener('change', onMedicalCategoryChange);
+}
+if (medicalNameSelect) {
+  medicalNameSelect.addEventListener('change', updateAddItemButtonState);
+}
+if (equipmentTypeSelect) {
+  equipmentTypeSelect.addEventListener('change', onEquipmentTypeChange);
+}
+if (equipmentCategorySelect) {
+  equipmentCategorySelect.addEventListener('change', onEquipmentCategoryChange);
+}
+if (equipmentNameSelect) {
+  equipmentNameSelect.addEventListener('change', updateAddItemButtonState);
+}
+if (otherItemName) {
+  otherItemName.addEventListener('input', updateAddItemButtonState);
+}
+if (otherItemDescription) {
+  otherItemDescription.addEventListener('input', updateAddItemButtonState);
+}
+if (otherItemWeight) {
+  otherItemWeight.addEventListener('input', updateAddItemButtonState);
+}
 if (confirmAddInventoryItemBtn) {
-  confirmAddInventoryItemBtn.addEventListener('click', addSelectedWeaponToInventory);
+  confirmAddInventoryItemBtn.addEventListener('click', () => {
+    if (addItemTypeSelect.value === 'Armes') {
+      addSelectedWeaponToInventory();
+    } else if (addItemTypeSelect.value === 'Medical') {
+      addSelectedMedicalToInventory();
+    } else if (addItemTypeSelect.value === 'Equipement') {
+      addSelectedEquipmentToInventory();
+    } else if (addItemTypeSelect.value === 'Autre') {
+      addSelectedOtherToInventory();
+    }
+  });
 }
 
 inventoryList?.addEventListener('click', (event) => {
