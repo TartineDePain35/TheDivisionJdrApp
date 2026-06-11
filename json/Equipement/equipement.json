@@ -1,0 +1,42 @@
+[
+  {
+    "type": "Protection",
+    "category": "Armure",
+    "name": "Gilet pare-balles léger",
+    "description": "Un gilet pare-balles léger vous offre une protection contre les balles et les projectiles pendant une courte période.",
+    "effect": "-1 au total de dégâts subis au corps",
+    "weight": 2.0
+  },
+  {
+    "type": "Protection",
+    "category": "Armure",
+    "name": "Gilet pare-balles lourd",
+    "description": "Un gilet pare-balles lourd vous offre une protection contre les balles et les projectiles pendant une longue période.",
+    "effect": "-2 au total de dégâts subis au corps",
+    "weight": 4.0
+  },
+  {
+    "type": "Protection",
+    "category": "Armure",
+    "name": "Casque de combat",
+    "description": "Un casque de combat vous offre une protection contre les balles et les projectiles pendant une courte période.",
+    "effect": "-1 au total de dégâts subis à la tête",
+    "weight": 1.5
+  },
+  {
+    "type": "Protection",
+    "category": "Armure",
+    "name": "Protège-tibias",
+    "description": "Un protège-tibias vous offre une protection contre chocs et les projectiles",
+    "effect": "-1 au total de dégâts subis aux jambes",
+    "weight": 1.0
+  },
+  {
+    "type": "Protection",
+    "category": "Armure",
+    "name": "Protège-coudes",
+    "description": "Un protège-coudes vous offre une protection contre chocs et les projectiles",
+    "effect": "-1 au total de dégâts subis aux bras",
+    "weight": 1.0
+  }
+]

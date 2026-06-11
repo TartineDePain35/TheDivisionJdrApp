@@ -80,7 +80,8 @@ function mapAgentRow(row) {
     familyStatus: row.familyStatus,
     children: row.children,
     story: row.story,
-    talent: parseJsonValue(row.talent),
+    talent: row.talent ? parseJsonValue(row.talent) : null,
+    talentId: row.talentId,
     stats: parseJsonValue(row.stats),
     attributes: parseJsonValue(row.attributes),
     password: row.password,
@@ -92,6 +93,15 @@ function mapAgentRow(row) {
     effects: parseJsonValue(row.effects),
     inventoryCapacity: row.inventoryCapacity,
     xp: row.xp,
+  };
+}
+
+function mapTalentRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
   };
 }
 
@@ -148,7 +158,19 @@ function getAgentById(id) {
   const agent = mapAgentRow(row);
   agent.inventory = getInventory(id);
   agent.assignedEffects = getAgentEffects(id);
+  if (row.talentId) {
+    agent.talent = getTalentById(row.talentId);
+  }
   return agent;
+}
+
+function getTalentById(id) {
+  const row = get('SELECT * FROM talents WHERE id = ?', [id]);
+  return mapTalentRow(row);
+}
+
+function getAllTalents() {
+  return all('SELECT * FROM talents').map(mapTalentRow);
 }
 
 function getAgentByName(name) {
@@ -157,6 +179,9 @@ function getAgentByName(name) {
   const agent = mapAgentRow(row);
   agent.inventory = getInventory(row.id);
   agent.assignedEffects = getAgentEffects(row.id);
+  if (row.talentId) {
+    agent.talent = getTalentById(row.talentId);
+  }
   return agent;
 }
 
@@ -207,6 +232,65 @@ function ensureFirstAgentHasDefaultEffect() {
   }
 }
 
+function loadTalentsFromJson() {
+  const talentsJsonPath = path.join(__dirname, 'json', 'talents.json');
+  if (!fs.existsSync(talentsJsonPath)) {
+    return;
+  }
+
+  const rows = all('SELECT id FROM talents LIMIT 1');
+  if (rows.length > 0) {
+    return;
+  }
+
+  try {
+    const payload = fs.readFileSync(talentsJsonPath, 'utf8');
+    const talents = JSON.parse(payload);
+    const insertStmt = db.prepare(
+      'INSERT INTO talents (title, description) VALUES (?, ?)'
+    );
+    for (const talent of Array.isArray(talents) ? talents : []) {
+      insertStmt.run([
+        talent.title || '',
+        talent.description || '',
+      ]);
+    }
+    insertStmt.free();
+    saveDatabase();
+  } catch (error) {
+    console.error('Impossible de charger talents.json:', error);
+  }
+}
+
+function insertDefaultTalents() {
+  const rows = all('SELECT id FROM talents LIMIT 1');
+  if (rows.length > 0) {
+    return;
+  }
+
+  const defaultTalents = [
+    { title: 'Tireur d\'élite', description: 'Maîtrise exceptionnelle des armes à feu. Bonus de précision et de dégâts avec les armes.' },
+    { title: 'Médecin de combat', description: 'Compétences médicales avancées. Peut soigner les blessures plus efficacement.' },
+    { title: 'Ingénieur tactique', description: 'Expert en technologie et réparation d\'équipements. Bonus avec les objets techniques.' },
+    { title: 'Infiltrateur', description: 'Spécialiste des opérations furtives. Bonus de discrétion et d\'évasion.' },
+    { title: 'Chef d\'équipe', description: 'Leadership naturel. Bonus aux caractéristiques des alliés à proximité.' },
+    { title: 'Survivant', description: 'Résistance accrue aux effets négatifs et capacité de récupération améliorée.' },
+    { title: 'Expert en explosifs', description: 'Maîtrise des explosifs et des pièges. Bonus de dégâts avec les explosifs.' },
+    { title: 'Éclaireur', description: 'Vision perçante et capacité à repérer les ennemis à distance.' },
+    { title: 'Combattant rapproché', description: 'Spécialiste du combat au corps à corps. Bonus de dégâts en combat rapproché.' },
+    { title: 'Stratège', description: 'Capacité à élaborer des plans tactiques efficaces. Bonus à l\'initiative.' },
+  ];
+
+  const insertStmt = db.prepare(
+    'INSERT INTO talents (title, description) VALUES (?, ?)'
+  );
+  for (const talent of defaultTalents) {
+    insertStmt.run([talent.title, talent.description]);
+  }
+  insertStmt.free();
+  saveDatabase();
+}
+
 function getAllAgents() {
   return all('SELECT * FROM agents').map((row) => {
     const agent = mapAgentRow(row);
@@ -250,6 +334,7 @@ function createAgent(agent) {
     'children',
     'story',
     'talent',
+    'talentId',
     'stats',
     'attributes',
     'password',
@@ -277,6 +362,7 @@ function createAgent(agent) {
     agent.children,
     agent.story,
     serializeJsonValue(agent.talent),
+    agent.talentId || null,
     serializeJsonValue(agent.stats),
     serializeJsonValue(agent.attributes),
     agent.password,
@@ -314,6 +400,7 @@ function updateAgent(agent) {
     children = ?,
     story = ?,
     talent = ?,
+    talentId = ?,
     stats = ?,
     attributes = ?,
     password = ?,
@@ -338,6 +425,7 @@ function updateAgent(agent) {
     agent.children,
     agent.story,
     serializeJsonValue(agent.talent),
+    agent.talentId || null,
     serializeJsonValue(agent.stats),
     serializeJsonValue(agent.attributes),
     agent.password,
@@ -386,6 +474,7 @@ async function initializeDatabase() {
       children INTEGER,
       story TEXT,
       talent TEXT,
+      talentId INTEGER,
       stats TEXT,
       attributes TEXT,
       password TEXT,
@@ -398,7 +487,16 @@ async function initializeDatabase() {
       inventoryCapacity INTEGER,
       xp INTEGER DEFAULT 0,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(talentId) REFERENCES talents(id)
+    );
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS talents (
+      id INTEGER PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL
     );
   `);
   db.run(`
@@ -437,7 +535,12 @@ async function initializeDatabase() {
   `);
 
   loadEffectsFromJson();
+  loadTalentsFromJson();
+  insertDefaultTalents();
   ensureFirstAgentHasDefaultEffect();
+  
+  run('DELETE FROM agents');
+  
   saveDatabase();
 }
 
@@ -471,6 +574,11 @@ async function getAllEffectsAsync() {
   return getAllEffects();
 }
 
+async function getAllTalentsAsync() {
+  await ensureReady();
+  return getAllTalents();
+}
+
 async function createAgentAsync(agent) {
   await ensureReady();
   return createAgent(agent);
@@ -486,6 +594,7 @@ module.exports = {
   getAgentById: getAgentByIdAsync,
   getAgentByName: getAgentByNameAsync,
   getAllEffects: getAllEffectsAsync,
+  getAllTalents: getAllTalentsAsync,
   createAgent: createAgentAsync,
   updateAgent: updateAgentAsync,
 };

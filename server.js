@@ -30,6 +30,11 @@ app.get('/api/effects', async (req, res) => {
   res.json({ success: true, effects });
 });
 
+app.get('/api/talents', async (req, res) => {
+  const talents = await db.getAllTalents();
+  res.json({ success: true, talents });
+});
+
 app.post('/api/agents', async (req, res) => {
   const agent = req.body;
   if (!agent || !agent.name || !agent.firstName || !agent.password) {

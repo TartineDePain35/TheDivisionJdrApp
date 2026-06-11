@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Division Adventure</title>
+  <title>Division JDR</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="app-shell">
     <header class="brand-bar">
-      <div class="brand-logo">DIVISION</div>
-      <button id="logoutBtn" class="btn btn-tertiary btn-icon btn-icon-sm hidden" aria-label="Déconnexion">⎋</button>
+      <div class="brand-logo">THE DIVISION - JDR</div>
+      <button id="logoutBtn" class="btn btn-tertiary btn-icon btn-icon-sm hidden" aria-label="Déconnexion">X</button>
     </header>
 
     <main>
       <section id="landing" class="page active-page">
         <div class="hero-card">
           <div class="hero-title">Bienvenue Agent</div>
-          <p class="hero-text">Connectez-vous ou créez un nouvel agent pour démarrer votre mission.</p>
+          <p class="hero-text">Connectez-vous pour poursuivre votre aventureou créez un nouvel agent pour démarrer votre mission.</p>
           <div class="form-card">
             <form id="loginForm">
               <label for="agentName">Nom de l’agent</label>
@@ -231,6 +231,10 @@
                 <span class="badge-icon">🧠</span>
                 <span id="heroAttrPoints">0</span>
               </div>
+              <div class="status-badge attrs-badge">
+                <span class="badge-icon">📊</span>
+                <span id="heroCompPoints">0</span>
+              </div>
             </div>
             <button id="homeBtn" class="btn btn-tertiary hidden" aria-label="Retour au tableau de bord">Retour tableau de bord</button>
           </div>
@@ -251,10 +255,11 @@
 
           <div class="quick-nav">
             <button id="inventoryBtn" class="btn btn-secondary">Inventaire</button>
-            <button id="skillsBtn" class="btn btn-secondary">Compétences</button>
-            <button class="btn btn-secondary">Réseau d'attributs</button>
+            <button id="skillsBtn" class="btn btn-secondary">Caractéristiques</button>
+            <button id="attributesBtn" class="btn btn-secondary">Attributs</button>
+            <button class="btn btn-secondary">Compétences</button>
             <button class="btn btn-secondary">Talents</button>
-            <button class="btn btn-secondary">Messages privés</button>
+            <button class="btn btn-secondary">Messages</button>
           </div>
         </div>
 
@@ -276,7 +281,7 @@
 
         <div id="skillsView" class="hidden">
           <article class="dashboard-card skills-card">
-            <h3>Compétences</h3>
+            <h3>Caractéristiques</h3>
             <p class="step-help">Attribuez les points restants aux caractéristiques physiques de l’agent.</p>
             <div class="reserve-box">Points restants : <strong id="skillsReserveCount">0</strong></div>
 
@@ -313,7 +318,50 @@
               </div>
             </div>
 
-            <button id="saveSkillsBtn" type="button" class="btn btn-primary">Valider les compétences</button>
+            <button id="saveSkillsBtn" type="button" class="btn btn-primary">Valider</button>
+          </article>
+        </div>
+
+        <div id="attributesView" class="hidden">
+          <article class="dashboard-card skills-card">
+            <h3>Attributs</h3>
+            <p class="step-help">Attribuez les points restants aux attributs de l'agent.</p>
+            <div class="reserve-box">Points restants : <strong id="attributesReserveCount">0</strong></div>
+
+            <div class="attribute-row">
+              <div>
+                <div class="attribute-title">Conscience</div>
+                <div class="attribute-note">Affinité avec l'environnement qui vous entoure.</div>
+              </div>
+              <div class="attribute-controls">
+                <button type="button" class="icon-btn" data-attr="conscience">+</button>
+                <span id="conscienceAttributeValue">1</span>
+              </div>
+            </div>
+
+            <div class="attribute-row">
+              <div>
+                <div class="attribute-title">Dextérité</div>
+                <div class="attribute-note">Naturellement précis et physique.</div>
+              </div>
+              <div class="attribute-controls">
+                <button type="button" class="icon-btn" data-attr="dexterity">+</button>
+                <span id="dexterityAttributeValue">1</span>
+              </div>
+            </div>
+
+            <div class="attribute-row">
+              <div>
+                <div class="attribute-title">Technique</div>
+                <div class="attribute-note">À l'aise avec les technologies, le corps humain.</div>
+              </div>
+              <div class="attribute-controls">
+                <button type="button" class="icon-btn" data-attr="technique">+</button>
+                <span id="techniqueAttributeValue">1</span>
+              </div>
+            </div>
+
+            <button id="saveAttributesBtn" type="button" class="btn btn-primary">Valider</button>
           </article>
         </div>
       </section>
@@ -383,6 +431,51 @@
           <select id="weaponNameSelect" disabled>
             <option value="">Sélectionnez</option>
           </select>
+        </div>
+
+        <div id="medicalSelectorSection" class="hidden">
+          <label for="medicalTypeSelect">Type</label>
+          <select id="medicalTypeSelect">
+            <option value="">Sélectionnez</option>
+          </select>
+
+          <label for="medicalCategorySelect">Catégorie</label>
+          <select id="medicalCategorySelect" disabled>
+            <option value="">Sélectionnez</option>
+          </select>
+
+          <label for="medicalNameSelect">Nom</label>
+          <select id="medicalNameSelect" disabled>
+            <option value="">Sélectionnez</option>
+          </select>
+        </div>
+
+        <div id="equipmentSelectorSection" class="hidden">
+          <label for="equipmentTypeSelect">Type</label>
+          <select id="equipmentTypeSelect">
+            <option value="">Sélectionnez</option>
+          </select>
+
+          <label for="equipmentCategorySelect">Catégorie</label>
+          <select id="equipmentCategorySelect" disabled>
+            <option value="">Sélectionnez</option>
+          </select>
+
+          <label for="equipmentNameSelect">Nom</label>
+          <select id="equipmentNameSelect" disabled>
+            <option value="">Sélectionnez</option>
+          </select>
+        </div>
+
+        <div id="otherSelectorSection" class="hidden">
+          <label for="otherItemName">Nom de l'objet</label>
+          <input id="otherItemName" type="text" placeholder="Ex: Lampe torche" />
+
+          <label for="otherItemDescription">Description</label>
+          <textarea id="otherItemDescription" rows="3" placeholder="Description de l'objet..."></textarea>
+
+          <label for="otherItemWeight">Poids (kg)</label>
+          <input id="otherItemWeight" type="number" step="0.1" min="0" placeholder="Ex: 0.5" />
         </div>
 
         <button id="confirmAddInventoryItemBtn" type="button" class="btn btn-primary hidden" disabled>Ajouter à l'inventaire</button>

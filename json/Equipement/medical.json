@@ -1,0 +1,50 @@
+[
+  {
+    "type": "Manuel",
+    "category": "Injection",
+    "name": "shot d'adrénaline",
+    "range": "corps à corps",
+    "description": "Un shot d'adrénaline vous donne un boost de vitesse et de résistance pendant une courte période.",
+    "weight": 0.8
+  },
+  {
+    "type": "Manuel",
+    "category": "Injection",
+    "name": "Morphine",
+    "range": "corps à corps",
+    "description": "Un shot de morphine vous permet de gagner en résistance et de réduire la douleur pendant une courte période.",
+    "weight": 0.8
+  },
+  {
+    "type": "Automatique",
+    "category": "Electronique",
+    "name": "Défibrillateur",
+    "range": "corps à corps",
+    "description": "Un défibrillateur peut être utilisé pour réanimer un personnage au bord de la mort.",
+    "weight": 2.5
+  },
+  {
+    "type": "Automatique",
+    "category": "Electronique",
+    "name": "Medi-scan",
+    "range": "corps à corps",
+    "description": "Un medi-scan peut être utilisé pour diagnostiquer les blessures d'un personnage.",
+    "weight": 2.5
+  },
+  {
+    "type": "Automatique",
+    "category": "Electronique",
+    "name": "Drone réanimateur",
+    "range": "longue",
+    "description": "Un drone réanimateur peut être utilisé pour réanimer un personnage au bord de la mort.",
+    "weight": 3.0
+  },
+  {
+    "type": "Manuel",
+    "category": "Application",
+    "name": "Medikit",
+    "range": "corps à corps",
+    "description": "Un medikit contient 2 bandages, 10 antiseptiques, 5 analgésiques, 5 anti-douleurs et 1 kit de suture.",
+    "weight": 4.0
+  }
+]
