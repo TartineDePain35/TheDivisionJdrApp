@@ -30,6 +30,7 @@
             </form>
 
             <button id="createAgentBtn" class="btn btn-secondary">Créer un nouvel agent</button>
+            <a href="/admin/login" class="admin-link">espace admin</a>
           </div>
         </div>
       </section>
@@ -204,8 +205,8 @@
             </div>
 
             <div class="wizard-actions">
-              <button type="button" id="wizardBack" class="btn btn-tertiary">Retour</button>
               <button type="button" id="wizardNext" class="btn btn-primary" disabled>Suivant</button>
+              <button type="button" id="wizardBack" class="btn btn-tertiary">Retour</button>
             </div>
           </div>
         </div>
@@ -257,7 +258,7 @@
             <button id="inventoryBtn" class="btn btn-secondary">Inventaire</button>
             <button id="skillsBtn" class="btn btn-secondary">Caractéristiques</button>
             <button id="attributesBtn" class="btn btn-secondary">Attributs</button>
-            <button class="btn btn-secondary">Compétences</button>
+            <button id="competencesBtn" class="btn btn-secondary">Compétences</button>
             <button class="btn btn-secondary">Talents</button>
             <button class="btn btn-secondary">Messages</button>
           </div>
@@ -291,8 +292,9 @@
                 <div class="attribute-note">Au combat, la rapidité sert à déterminer l'initiative et l'ordre d'action.</div>
               </div>
               <div class="attribute-controls">
-                <button type="button" class="icon-btn" data-stat="speed">+</button>
+                <button type="button" class="icon-btn" data-stat="speed" data-action="decrease" style="display: none;">-</button>
                 <span id="speedSkillValue">1</span>
+                <button type="button" class="icon-btn" data-stat="speed" data-action="increase">+</button>
               </div>
             </div>
 
@@ -302,8 +304,9 @@
                 <div class="attribute-note">La résilience représente le sang-froid et l'aplomb face aux situations tendues.</div>
               </div>
               <div class="attribute-controls">
-                <button type="button" class="icon-btn" data-stat="resilience">+</button>
+                <button type="button" class="icon-btn" data-stat="resilience" data-action="decrease" style="display: none;">-</button>
                 <span id="resilienceSkillValue">1</span>
+                <button type="button" class="icon-btn" data-stat="resilience" data-action="increase">+</button>
               </div>
             </div>
 
@@ -313,8 +316,9 @@
                 <div class="attribute-note">La vigueur s'attache à l'endurance et à la résistance naturelle face aux blessures.</div>
               </div>
               <div class="attribute-controls">
-                <button type="button" class="icon-btn" data-stat="vigor">+</button>
+                <button type="button" class="icon-btn" data-stat="vigor" data-action="decrease" style="display: none;">-</button>
                 <span id="vigorSkillValue">1</span>
+                <button type="button" class="icon-btn" data-stat="vigor" data-action="increase">+</button>
               </div>
             </div>
 
@@ -334,8 +338,9 @@
                 <div class="attribute-note">Affinité avec l'environnement qui vous entoure.</div>
               </div>
               <div class="attribute-controls">
-                <button type="button" class="icon-btn" data-attr="conscience">+</button>
+                <button type="button" class="icon-btn" data-attr="conscience" data-action="decrease" style="display: none;">-</button>
                 <span id="conscienceAttributeValue">1</span>
+                <button type="button" class="icon-btn" data-attr="conscience" data-action="increase">+</button>
               </div>
             </div>
 
@@ -345,8 +350,9 @@
                 <div class="attribute-note">Naturellement précis et physique.</div>
               </div>
               <div class="attribute-controls">
-                <button type="button" class="icon-btn" data-attr="dexterity">+</button>
+                <button type="button" class="icon-btn" data-attr="dexterity" data-action="decrease" style="display: none;">-</button>
                 <span id="dexterityAttributeValue">1</span>
+                <button type="button" class="icon-btn" data-attr="dexterity" data-action="increase">+</button>
               </div>
             </div>
 
@@ -356,16 +362,33 @@
                 <div class="attribute-note">À l'aise avec les technologies, le corps humain.</div>
               </div>
               <div class="attribute-controls">
-                <button type="button" class="icon-btn" data-attr="technique">+</button>
+                <button type="button" class="icon-btn" data-attr="technique" data-action="decrease" style="display: none;">-</button>
                 <span id="techniqueAttributeValue">1</span>
+                <button type="button" class="icon-btn" data-attr="technique" data-action="increase">+</button>
               </div>
             </div>
 
             <button id="saveAttributesBtn" type="button" class="btn btn-primary">Valider</button>
           </article>
         </div>
+
+        <div id="competencesView" class="hidden">
+          <article class="dashboard-card competences-card">
+            <h3>Compétences</h3>
+            <div id="competencesContainer"></div>
+            <button id="saveCompetencesBtn" type="button" class="btn btn-primary">Valider</button>
+          </article>
+        </div>
       </section>
     </main>
+  </div>
+
+  <div id="competenceDescModal" class="modal-overlay">
+    <div class="modal-card">
+      <button type="button" id="closeCompetenceDescBtn" class="modal-close">✕</button>
+      <h2>Description</h2>
+      <p id="competenceDescContent"></p>
+    </div>
   </div>
 
   <div id="toast" class="toast"></div>

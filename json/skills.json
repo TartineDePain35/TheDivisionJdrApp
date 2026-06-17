@@ -1,0 +1,311 @@
+[
+  {
+    "attribute-group": "Conscience",
+    "attributes": [
+      {
+        "name": "Environnement",
+        "description": "Le domaine Environnement représente la capacité d’un Agent à étudier, comprendre et interagir avec le monde qui l’entour. Il permet d’évaluer aussi bien ses capacités d’analyse que son intuition et sa facilité à tirer parti du milieu dans lequel il évolue.",
+        "skills-groupe": 
+        [
+          {
+            "groupe-name": "Furtivité",
+            "skills": 
+            [
+              {
+                "name": "Infiltration",
+                "description": "L’infiltration est la capacité d’un Agent à se déplacer discrètement et à éviter d’être détecté par les ennemis. Elle permet de se faufiler dans des zones surveillées, de contourner les obstacles et de rester invisible aux yeux des adversaires."
+              },
+              {
+                "name": "Filature",
+                "description": "La filature est la capacité d’un Agent à suivre et à surveiller les mouvements d’une cible. Elle permet de recueillir des informations sur les activités et les habitudes d’un ennemi."
+              },
+              {
+                "name": "Crochetage",
+                "description": "Le crochetage est la capacité d’un Agent à ouvrir des verrous sans utiliser de clés. Elle permet de contourner les systèmes de sécurité et d’accéder à des zones restreintes."
+              },
+              {
+                "name": "Sabotage",
+                "description": "Le sabotages est la capacité d’un Agent à endommager ou à détruire des installations ou des équipements. Elle permet de perturber les opérations ennemies et de créer des désordres dans leur organisation."
+              }
+            ]
+          },
+          {
+            "groupe-name": "Observation",
+            "skills": 
+            [
+              {
+                "name": "Reconnaissance",
+                "description": "La reconnaissance est la capacité d’un Agent à identifier et à analyser les éléments de son environnement. Elle permet de détecter repérer des ennemis et de comprendre les situations complexes."
+              },
+              {
+                "name": "Pistage",
+                "description": "Le pistage est la capacité d’un Agent à suivre et à surveiller les mouvements d’une cible. Elle permet de recueillir des informations sur les activités et les habitudes d’un ennemi."
+              },
+              {
+                "name": "Analyse",
+                "description": "L’analyse est la capacité d’un Agent à interpréter et à comprendre les informations recueillies. Elle permet de prendre des décisions éclairées et de planifier des actions efficaces."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Lien",
+        "description": "Le domaine Lien s’attache à définir les rapports intellectuels, sociaux et humains que l’Agent entretient avec le monde. Il évoque les capacités de compréhension et d’échange d’un individu, ainsi que sa faculté à entrevoir et adopter des perspectives nouvelles.",
+        "skills-groupe":
+        [
+          {
+            "groupe-name": "Connaissance",
+            "skills": 
+            [
+              {
+                "name": "Chimie",
+                "description": "La chimie est la capacité d’un Agent à comprendre et à manipuler les substances chimiques. Elle permet de créer des explosifs, des antidotes et d’analyser les composants d’un environnement."
+              },
+              {
+                "name": "Histoire",
+                "description": "L’histoire est la capacité d’un Agent à connaître et à comprendre le passé. Elle permet de contextualiser les événements et de prédire les comportements."
+              },
+              {
+                "name": "Mathématiques",
+                "description": "Les mathématiques sont la capacité d’un Agent à résoudre des problèmes complexes et à effectuer des calculs précis. Elle permet de planifier des opérations et de prendre des décisions basées sur des données quantitatives."
+              },
+              {
+                "name": "Sociologie",
+                "description": "La sociologie est la capacité d’un Agent à comprendre les structures sociales et les comportements collectifs. Elle permet de s’intégrer dans différents milieux et de manipuler les dynamiques de groupe."
+              }
+            ]
+          },
+          {
+            "groupe-name": "Dialogue",
+            "skills": 
+            [
+              {
+                "name": "discours",
+                "description": "Le discours est la capacité d’un Agent à s’exprimer clairement et à communiquer efficacement. Elle permet de résoudre des conflits, d’obtenir des informations et de créer des alliances."
+              },
+              {
+                "name": "Marchandage",
+                "description": "Le marchandage est la capacité d’un Agent à négocier et à échanger efficacement. Elle permet de résoudre des conflits, d’obtenir des informations et de créer des alliances."
+              },
+              {
+                "name": "Persuasion",
+                "description": "La persuasion est la capacité d’un Agent à convaincre les autres de ses idées ou de ses intentions. Elle permet de gagner la confiance et de mobiliser les ressources humaines."
+              },
+              {
+                "name": "Soutien",
+                "description": "Le soutien est la capacité d’un Agent à fournir de l’aide et du réconfort aux autres. Elle permet de renforcer les liens sociaux et de promouvoir la coopération."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "attribute-group": "Déxterité",
+    "attributes": [
+      {
+        "name": "Physique",
+        "description": "Le domaine Physique représente la capacité d’un Agent à utiliser son corps pour accomplir des tâches physiques. Il permet d’évaluer la force, l’endurance et l’agilité d’un individu.",
+        "skills-groupe":
+        [
+          {
+            "groupe-name": "Athlétisme",
+            "skills": 
+            [
+              {
+                "name": "plongée",
+                "description": "La plongée est la capacité d’un Agent à se déplacer efficacement sous l’eau. Elle permet de explorer les fonds marins, de récupérer des objets et de se défendre dans des situations aquatiques."
+              },
+              {
+                "name": "Descente en rappel",
+                "description": "La descente en rappel est la capacité d’un Agent à descendre en utilisant un système de rappel. Elle permet de se déplacer efficacement dans les environnements verticaux et de se défendre dans des situations dangereuses."
+              },
+              {
+                "name": "Parkour",
+                "description": "Le parkour est la capacité d’un Agent à se déplacer rapidement et efficacement dans des environnements urbains. Elle permet de franchir des obstacles et de se déplacer dans différents espaces."
+              },
+              {
+                "name": "Course vitesse",
+                "description": "La course à la vitesse est la capacité d’un Agent à se déplacer rapidement sur de longues distances. Elle permet de fuir les ennemis, de poursuivre des cibles et de se déplacer efficacement dans différents environnements."
+              }
+            ]
+          },
+          {
+            "groupe-name": "Mêlée",
+            "skills": 
+            [
+              {
+                "name": "Art martial",
+                "description": "L'art martial est la capacité d’un Agent à utiliser des techniques de combat rapproché. Elle permet de combattre efficacement dans des situations de proximité."
+              },
+              {
+                "name": "Poignard",
+                "description": "Le poignard est la capacité d’un Agent à utiliser un arme de mêlée. Elle permet de combattre efficacement dans des situations de proximité."
+              },
+              {
+                "name": "Matraque",
+                "description": "La matraque est la capacité d’un Agent à utiliser un outil de combat rapproché. Elle permet de combattre efficacement dans des situations de proximité."
+              }, 
+              {
+                "name": "Arme improvisée",
+                "description": "L'arme improvisée est la capacité d’un Agent à utiliser un objet comme arme de combat. Elle permet de combattre efficacement dans des situations de proximité."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Précision",
+        "description": "Le domaine Précision représente la capacité d’un Agent à effectuer des actions avec une grande exactitude. Il permet de maîtriser les mouvements précis, de viser avec précision et de réaliser des tâches exigeant une grande précision.",
+        "skills-groupe":
+        [
+          {
+            "groupe-name": "Armes légères",
+            "skills": 
+            [
+              {
+                "name": "Armes de poing",
+                "description": "Les armes de poing sont la capacité d’un Agent à utiliser des armes de courte portée. Elle permet de combattre efficacement dans des situations de proximité."
+              },
+              {
+                "name": "Fusils mitralleurs",
+                "description": "Les fusils mitralleurs sont la capacité d’un Agent à utiliser des armes de longue portée. Elle permet de combattre efficacement dans des situations de distance."
+              },
+              {
+                "name": "Fusils d'assaut",
+                "description": "Les fusils d'assaut sont la capacité d’un Agent à utiliser des armes de très longue portée. Elle permet de combattre efficacement dans des situations de haute tension."
+              }, 
+              {
+                "name": "Fusils à pompe",
+                "description": "Les fusils à pompe sont la capacité d’un Agent à utiliser des armes de très longue portée. Elle permet de combattre efficacement dans des situations de haute tension."
+              }
+            ]
+          },
+          {
+            "groupe-name": "Armes lourdes",
+            "skills": 
+            [
+              {
+                "name": "Fusils de précision",
+                "description": "Les fusils de précision sont la capacité d’un Agent à utiliser des armes de très longue portée. Elle permet de combattre efficacement dans des situations de haute tension."
+              },
+              {
+                "name": "Lance-grenades",
+                "description": "Les lance-grenades sont la capacité d’un Agent à utiliser des armes de très longue portée. Elle permet de combattre efficacement dans des situations de haute tension."
+              },
+              {
+                "name": "Lance-flammes",
+                "description": "Les lance-flammes sont la capacité d’un Agent à utiliser des armes de très longue portée. Elle permet de combattre efficacement dans des situations de haute tension."
+              },
+              {
+                "name": "mines",
+                "description": "Les mines sont la capacité d’un Agent à utiliser des armes de très longue portée. Elle permet de combattre efficacement dans des situations de haute tension."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "attribute-group": "Technique",
+    "attributes": [
+      {
+        "name": "Technologie",
+        "description": "Le domaine Technologie représente la capacité d’un Agent à comprendre et à utiliser les outils technologiques. Il permet de maîtriser les systèmes informatiques, les dispositifs électroniques et les équipements spécialisés.",
+        "skills-groupe":
+        [
+          {
+            "groupe-name": "Gadgets",
+            "skills": 
+            [
+              {
+                "name": "Drones",
+                "description": "Les drones sont la capacité d’un Agent à utiliser des appareils autonomes. Elle permet de réaliser des missions de reconnaissance, de surveillance et d’intervention dans des environnements difficiles."
+              },
+              {
+                "name": "Lucioles",
+                "description": "Les lucioles sont la capacité d’un Agent à utiliser des dispositifs d’éclairage avancés. Elle permet de mieux voir dans les environnements sombres et de repérer les cibles."
+              },
+              {
+                "name": "Ruches",
+                "description": "Les ruches sont la capacité d’un Agent à utiliser les dispositifs d'explosifs controlés autonomes. Elle permet de configurer et de déclancher l'usage de mini-explosifs auto-guidés."
+              }, 
+              {
+                "name": "Tourelles",
+                "description": "Les tourelles sont la capacité d’un Agent à utiliser des dispositifs de défense automatique. Elle permet de protéger les positions et de neutraliser les menaces."
+              }
+            ]
+          },
+          {
+            "groupe-name": "Sécurité",
+            "skills": 
+            [
+              {
+                "name": "Informatique",
+                "description": "L’informatique est la capacité d’un Agent à comprendre et à utiliser les systèmes informatiques. Elle permet de gérer, d’entretenir et d’optimiser les équipements."
+              },
+              {
+                "name": "Piratage",
+                "description": "Le piratage est la capacité d’un Agent à accéder et à manipuler les systèmes informatiques. Elle permet de contourner les protections, de recueillir des informations sensibles et de perturber les opérations adverses."
+              },
+              {
+                "name": "Brouillage",
+                "description": "Le brouillage est la capacité d’un Agent à perturber les systèmes de communication et de navigation. Elle permet de masquer les mouvements, de désorienter les adversaires et de créer des opportunités tactiques."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Habilité",
+        "description": "Le domaine Habilité représente la capacité d’un Agent à maîtriser les compétences physiques et techniques nécessaires pour accomplir des tâches exigeantes. Il permet de développer l'artisanat, les techniques de soins...",
+        "skills-groupe":
+        [
+          {
+            "groupe-name": "Artisanat",
+            "skills": 
+            [
+              {
+                "name": "Bricolage",
+                "description": "Le bricolage est la capacité d’un Agent à construire et à manipuler les systèmes mécaniques. Elle permet de modifier l'environnement et d’optimiser les équipements."
+              },
+              {
+                "name": "Réparation",
+                "description": "La réparation est la capacité d’un Agent à réparer et à entretenir les équipements. Elle permet de maintenir les systèmes en bon état de fonctionnement."
+              },
+              {
+                "name": "Récupération recyclage",
+                "description": "La récupération et le recyclage sont la capacité d’un Agent à collecter et à traiter les ressources. Elle permet de réduire les déchets et de valoriser les matériaux."
+              }
+            ]
+          },
+          {
+            "groupe-name": "Médecine",
+            "skills": 
+            [
+              {
+                "name": "Premiers soins",
+                "description": "Les premiers soins sont la capacité d’un Agent à prodiguer des soins médicaux d’urgence. Elle permet de stabiliser les blessures et de sauver des vies."
+              },
+              {
+                "name": "Médecine",
+                "description": "La médecine est la capacité d’un Agent à diagnostiquer et à traiter les maladies et les blessures. Elle permet de maintenir la santé et le bien-être des individus."
+              },
+              {
+                "name": "Chirurgie",
+                "description": "La chirurgie est la capacité d’un Agent à effectuer des interventions médicales complexes. Elle permet de traiter les blessures graves et de restaurer les fonctions corporelles."
+              },
+              {
+                "name": "Psychiatrie",
+                "description": "La psychiatie est la capacité d’un Agent à diagnostiquer et à traiter les troubles mentaux. Elle permet de comprendre et de gérer les problèmes psychologiques et comportementaux."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

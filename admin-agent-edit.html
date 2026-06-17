@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - Édition Agent - Division JDR</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body {
+      background: #1a1a2e;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1rem;
+    }
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .admin-header h1 {
+      color: #e94560;
+      margin: 0;
+      font-size: 1.3rem;
+    }
+    .admin-header .btn {
+      background: #0f3460;
+    }
+    .agent-info-header {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .agent-info-header h2 {
+      color: #fff;
+      margin: 0 0 0.5rem;
+      font-size: 1.2rem;
+    }
+    .agent-meta {
+      color: #a0a0a0;
+      font-size: 0.9rem;
+    }
+    .edit-form {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .form-section {
+      margin-bottom: 1.5rem;
+    }
+    .form-section h3 {
+      color: #fff;
+      margin: 0 0 1rem;
+      font-size: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      color: #a0a0a0;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      background: #0f3460;
+      color: #fff;
+      font-size: 0.95rem;
+      box-sizing: border-box;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+    .form-group textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .btn {
+      padding: 0.6rem 1.2rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .btn-sm {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+    }
+    .effects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+    .effect-item {
+      background: #0f3460;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      padding: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .effect-item:hover {
+      border-color: #e94560;
+      background: #1a2540;
+    }
+    .effect-item.selected {
+      border-color: #e94560;
+      background: rgba(233, 69, 96, 0.15);
+    }
+    .effect-item .effect-name {
+      color: #fff;
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+    .effect-item .effect-description {
+      color: #a0a0a0;
+      font-size: 0.75rem;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #2a2a4a;
+    }
+    .loading {
+      color: #a0a0a0;
+      text-align: center;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-header">
+    <h1>Édition Agent</h1>
+    <a href="/admin/dashboard" class="btn btn-tertiary">Retour</a>
+  </div>
+
+  <div id="agentInfo" class="agent-info-header" style="display: none;">
+    <h2 id="agentFullName">Chargement...</h2>
+    <div id="agentMeta" class="agent-meta"></div>
+  </div>
+
+  <div id="editFormContainer" style="display: none;">
+    <form id="editAgentForm" class="edit-form">
+      <div class="form-section">
+        <h3>Stats et Santé</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="lifePercent">Santé (%)</label>
+            <input type="number" id="lifePercent" name="lifePercent" min="0" max="100" />
+          </div>
+          <div class="form-group">
+            <label for="inventoryCapacity">Capacité Inventaire</label>
+            <input type="number" id="inventoryCapacity" name="inventoryCapacity" min="0" />
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Points Disponibles</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="availableStatsPoints">Points Stats</label>
+            <input type="number" id="availableStatsPoints" name="availableStatsPoints" min="0" />
+          </div>
+          <div class="form-group">
+            <label for="availableAttributesPoints">Points Attributs</label>
+            <input type="number" id="availableAttributesPoints" name="availableAttributesPoints" min="0" />
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Mission Active</h3>
+        <div class="form-group">
+          <label for="activeMission">Mission</label>
+          <input type="text" id="activeMission" name="activeMission" />
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Effets</h3>
+        <p style="color: #a0a0a0; font-size: 0.85rem; margin-bottom: 0.75rem;">
+          Cliquez sur un effet pour l'ajouter/supprimer
+        </p>
+        <div id="effectsContainer" class="effects-grid">
+          <div class="loading">Chargement des effets...</div>
+        </div>
+        <input type="hidden" id="selectedEffects" name="selectedEffects" />
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Valider</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="loading" class="loading">Chargement de l'agent...</div>
+
+  <script>
+    const agentId = window.location.pathname.split('/').pop();
+    let allEffects = [];
+    let agentEffects = new Set();
+
+    async function loadAgent() {
+      try {
+        const [agentRes, effectsRes] = await Promise.all([
+          fetch(`/api/agents/${agentId}`),
+          fetch('/api/effects')
+        ]);
+
+        const agentData = await agentRes.json();
+        const effectsData = await effectsRes.json();
+
+        if (!agentData.success || !agentData.agent) {
+          document.getElementById('loading').textContent = 'Agent non trouvé';
+          return;
+        }
+
+        const agent = agentData.agent;
+        allEffects = effectsData.success ? effectsData.effects : [];
+        agentEffects = new Set((agent.assignedEffects || []).map(e => e.id));
+
+        // Store full agent data for submission
+        window.currentAgent = agent;
+
+        // Display agent info
+        document.getElementById('agentFullName').textContent = 
+          `${agent.name || 'N/A'} ${agent.firstName || ''}`.trim();
+        document.getElementById('agentMeta').textContent = 
+          `ID: ${agent.id} | Âge: ${agent.age || 'N/A'} | ${agent.profession || 'N/A'}`;
+
+        // Fill form
+        document.getElementById('lifePercent').value = agent.lifePercent ?? 100;
+        document.getElementById('availableStatsPoints').value = agent.availableStatsPoints ?? 0;
+        document.getElementById('availableAttributesPoints').value = agent.availableAttributesPoints ?? 0;
+        document.getElementById('activeMission').value = agent.activeMission || '';
+        document.getElementById('inventoryCapacity').value = agent.inventoryCapacity ?? 30;
+
+        // Show forms
+        document.getElementById('agentInfo').style.display = 'block';
+        document.getElementById('editFormContainer').style.display = 'block';
+        document.getElementById('loading').style.display = 'none';
+
+        renderEffects();
+      } catch (error) {
+        document.getElementById('loading').textContent = 'Erreur de chargement';
+      }
+    }
+
+    function renderEffects() {
+      const container = document.getElementById('effectsContainer');
+      container.innerHTML = '';
+
+      allEffects.forEach(effect => {
+        const item = document.createElement('div');
+        item.className = `effect-item ${agentEffects.has(effect.id) ? 'selected' : ''}`;
+        item.innerHTML = `
+          <div class="effect-name">${effect.name}</div>
+          <div class="effect-description">${effect.description || ''}</div>
+        `;
+        item.addEventListener('click', () => toggleEffect(effect.id));
+        container.appendChild(item);
+      });
+    }
+
+    function toggleEffect(effectId) {
+      if (agentEffects.has(effectId)) {
+        agentEffects.delete(effectId);
+      } else {
+        agentEffects.add(effectId);
+      }
+      document.getElementById('selectedEffects').value = Array.from(agentEffects).join(',');
+      renderEffects();
+    }
+
+    document.getElementById('editAgentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Start with full agent data and apply modifications
+      const updatedAgent = { ...window.currentAgent };
+      updatedAgent.id = parseInt(agentId);
+      updatedAgent.lifePercent = parseInt(document.getElementById('lifePercent').value) || 100;
+      updatedAgent.availableStatsPoints = parseInt(document.getElementById('availableStatsPoints').value) || 0;
+      updatedAgent.availableAttributesPoints = parseInt(document.getElementById('availableAttributesPoints').value) || 0;
+      updatedAgent.activeMission = document.getElementById('activeMission').value || '';
+      updatedAgent.inventoryCapacity = parseInt(document.getElementById('inventoryCapacity').value) || 30;
+      updatedAgent.assignedEffects = Array.from(agentEffects);
+
+      try {
+        const response = await fetch(`/api/agents/${agentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedAgent)
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          showToast('Agent mis à jour avec succès !');
+        } else {
+          showToast('Erreur lors de la mise à jour : ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        showToast('Erreur réseau : ' + error.message);
+      }
+    });
+
+    function showToast(message) {
+      const toastEl = document.getElementById('toast');
+      if (toastEl) {
+        toastEl.textContent = message;
+        toastEl.classList.add('show');
+        window.clearTimeout(showToast.timeout);
+        showToast.timeout = window.setTimeout(() => toastEl.classList.remove('show'), 2400);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadAgent);
+  </script>
+  <div id="toast" class="toast"></div>
+</body>
+</html>

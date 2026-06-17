@@ -70,6 +70,72 @@ app.put('/api/agents/:id', async (req, res) => {
   res.json({ success: true, agent: updated });
 });
 
+// Skills endpoints
+app.get('/api/skills/hierarchy/:agentId', async (req, res) => {
+  const agentId = Number(req.params.agentId);
+  if (!agentId) {
+    return res.status(400).json({ success: false, message: 'Identifiant agent invalide.' });
+  }
+  
+  const hierarchy = await db.getAgentSkillsHierarchy(agentId);
+  res.json({ success: true, hierarchy });
+});
+
+app.post('/api/skills/attribute-group', async (req, res) => {
+  const { agentId, groupId, value } = req.body;
+  if (!agentId || !groupId || value === undefined) {
+    return res.status(400).json({ success: false, message: 'Paramètres invalides.' });
+  }
+  
+  const isValid = await db.validateHierarchy(agentId, 'attribute_group', groupId, value);
+  if (!isValid) {
+    return res.status(400).json({ success: false, message: 'La somme des enfants dépasse la valeur du parent.' });
+  }
+  
+  await db.setAgentAttributeGroupValue(agentId, groupId, value);
+  res.json({ success: true });
+});
+
+app.post('/api/skills/attribute', async (req, res) => {
+  const { agentId, attributeId, value } = req.body;
+  if (!agentId || !attributeId || value === undefined) {
+    return res.status(400).json({ success: false, message: 'Paramètres invalides.' });
+  }
+  
+  const isValid = await db.validateHierarchy(agentId, 'attribute', attributeId, value);
+  if (!isValid) {
+    return res.status(400).json({ success: false, message: 'La somme des enfants dépasse la valeur du parent.' });
+  }
+  
+  await db.setAgentAttributeValue(agentId, attributeId, value);
+  res.json({ success: true });
+});
+
+app.post('/api/skills/skill-group', async (req, res) => {
+  const { agentId, groupId, value } = req.body;
+  if (!agentId || !groupId || value === undefined) {
+    return res.status(400).json({ success: false, message: 'Paramètres invalides.' });
+  }
+  
+  const isValid = await db.validateHierarchy(agentId, 'skill_group', groupId, value);
+  if (!isValid) {
+    return res.status(400).json({ success: false, message: 'La somme des enfants dépasse la valeur du parent.' });
+  }
+  
+  await db.setAgentSkillGroupValue(agentId, groupId, value);
+  res.json({ success: true });
+});
+
+app.post('/api/skills/skill', async (req, res) => {
+  const { agentId, skillId, value } = req.body;
+  if (!agentId || !skillId || value === undefined) {
+    return res.status(400).json({ success: false, message: 'Paramètres invalides.' });
+  }
+  
+  await db.setAgentSkillValue(agentId, skillId, value);
+  res.json({ success: true });
+});
+
 app.post('/api/login', async (req, res) => {
   const { name, password } = req.body || {};
   if (!name || !password) {
@@ -82,6 +148,28 @@ app.post('/api/login', async (req, res) => {
   }
 
   res.json({ success: true, agent });
+});
+
+// Admin routes
+app.get('/admin/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-login.html'));
+});
+
+app.post('/api/admin/login', async (req, res) => {
+  const { username, password } = req.body || {};
+  if (username === 'AdminAgent' && password === 'Takik_c_Makik') {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ success: false, message: 'Accès refusé' });
+  }
+});
+
+app.get('/admin/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-dashboard.html'));
+});
+
+app.get('/admin/agent/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-agent-edit.html'));
 });
 
 const port = process.env.PORT || 3000;

@@ -236,7 +236,7 @@ input::placeholder {
 }
 
 .btn-tertiary {
-  background: rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.1);
   color: var(--text);
   border: 1px solid rgba(255,255,255,0.18);
 }
@@ -851,4 +851,125 @@ input::placeholder {
   .carousel-shell {
     width: 100%;
   }
+}
+
+/* Admin link style */
+.admin-link {
+  display: block;
+  text-align: center;
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.admin-link:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+/* Competences styles */
+.competences-card {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.competences-card h3 {
+  margin: 0 0 14px;
+  color: var(--accent);
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.competence-level {
+  display: block;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.competence-level:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.competence-skill {
+  display: block;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.competence-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.competence-name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.competence-value {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.competence-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.competence-controls .icon-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 0.9rem;
+}
+
+.competence-back {
+  margin-bottom: 14px;
+}
+
+.competence-back .btn {
+  width: auto;
+  padding: 10px 16px;
+}
+
+.info-icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  margin-left: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.info-icon:hover {
+  background: rgba(255, 143, 31, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
 }

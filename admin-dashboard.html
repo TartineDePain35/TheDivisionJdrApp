@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tableau de bord Admin - Division JDR</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body {
+      background: #1a1a2e;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1rem;
+    }
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .admin-header h1 {
+      color: #e94560;
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    .admin-dashboard {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .admin-dashboard h2 {
+      color: #fff;
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      font-size: 1.2rem;
+    }
+    .agents-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .agents-table th {
+      text-align: left;
+      padding: 0.75rem;
+      background: #0f3460;
+      color: #a0a0a0;
+      font-size: 0.9rem;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .agents-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid #2a2a4a;
+      color: #fff;
+    }
+    .agents-table tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .agents-table a {
+      color: #e94560;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .agents-table a:hover {
+      text-decoration: underline;
+    }
+    .empty-state {
+      color: #a0a0a0;
+      text-align: center;
+      padding: 2rem;
+      font-style: italic;
+    }
+    .admin-actions {
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .admin-actions .btn {
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-header">
+    <h1>Tableau de bord Admin</h1>
+    <a href="/" class="btn btn-tertiary">Retour au site</a>
+  </div>
+
+  <div class="admin-dashboard">
+    <h2>Liste des agents actifs</h2>
+    <div id="agentsList">
+      <table class="agents-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Prénom</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="agentsTableBody">
+          <tr>
+            <td colspan="3" class="empty-state">Chargement en cours...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function loadAgents() {
+      try {
+        const response = await fetch('/api/agents');
+        const data = await response.json();
+        
+        if (data.success && data.agents && data.agents.length > 0) {
+          const tbody = document.getElementById('agentsTableBody');
+          tbody.innerHTML = '';
+          
+          data.agents.forEach(agent => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td><a href="/admin/agent/${agent.id}">${agent.name || 'N/A'}</a></td>
+              <td><a href="/admin/agent/${agent.id}">${agent.firstName || 'N/A'}</a></td>
+              <td><a href="/admin/agent/${agent.id}" class="btn btn-sm">Voir</a></td>
+            `;
+            tbody.appendChild(row);
+          });
+        } else {
+          document.getElementById('agentsTableBody').innerHTML = 
+            '<tr><td colspan="3" class="empty-state">Aucun agent trouvé</td></tr>';
+        }
+      } catch (error) {
+        document.getElementById('agentsTableBody').innerHTML = 
+          '<tr><td colspan="3" class="empty-state">Erreur de chargement</td></tr>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadAgents);
+  </script>
+</body>
+</html>

@@ -4,5 +4,119 @@
     "name": "Blessure handicapante",
     "description": "L'agent souffre d'une vilaine blessure qui entrave ses gestes et ses mouvements. Tout groupement de dés attachés aux attributs Dextérité et Technique est réduit de 1D",
     "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "lésion",
+    "name": "Inconscient",
+    "description": "À la suite d’un choc, l’Agent s’évanouit, laissant le reste de l’escouade vulnérable. Il souffre de l’État Inconscient et doit être transporté en lieu sûr, le temps de reprendre ses esprits. Sans intervention, il se réveille au bout de 5D10 minutes.",
+    "duration": "Jusqu'à réanimation"
+  },
+  {
+    "type": "lésion",
+    "name": "Blessure à la jambe",
+    "description": "L’Agent souffre d’une blessure qui limite ses mouvements. Jusqu’à la fin de la mission, il ne peut plus courir et voit la difficulté de ses jets d’Athlétisme augmenter de +2.",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "lésion",
+    "name": "Choc",
+    "description": "L’âpreté et la brutalité du combat ont ébranlé la détermination de l’Agent. Ce dernier souffre de l’État Secoué pendant 1D10 heures. L’État peut être supprimé au moyen d’un jet de Dialogue (8) effectué par un autre Agent.",
+    "duration": "1D10 heures"
+  },
+  {
+    "type": "lésion",
+    "name": "Fracture",
+    "description": "Pressé de toutes parts, l’Agent se brise un ou plusieurs os. Les groupements de dés liés à l’attribut Dextérité sont systématiquement réduits de 1D.",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "lésion",
+    "name": "Équipement endommagé",
+    "description": "Dans le feu de l’action, une pièce de l’équipement de l’Agent a été endommagée et est désormais inutilisable. Il peut s’agir d’une radio, de son dispositif ECHO, ou de tout autre objet présent dans son inventaire. Le Coordinateur choisit l’équipement endommagé. Ce dernier peut être réparé, à condition de disposer des ressources et composants nécessaires, au moyen d’un jet d’Artisanat (7).",
+    "duration": "jusqu'à réparation"
+  },
+  {
+    "type": "lésion",
+    "name": "Confusion",
+    "description": "À la suite d’un choc, l’Agent est pris de vertiges ou sujet à des bourdonnements intempestifs. La difficulté des jets de compétence se basant sur l’ouïe (Dialogue, Observation) et l’équilibre (Athlétisme, Mêlée et Furtivité) augmente de +1",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "lésion",
+    "name": "Entraves",
+    "description": "Des éclats de mitraille, l’épuisement ou une mauvaise chute limitent considérablement les capacités de mouvement de l’Agent. En combat, la distance parcourue (mouvement normal et course) est divisée par deux (arrondie à l’entier supérieur).",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "lésion",
+    "name": "Égratignure",
+    "description": "Par chance, la blessure est superficielle et le combattant hors de danger. Il regagne immédiatement 1 point de santé.",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "séquelle",
+    "name": "Mort",
+    "description": "En dépit de son héroïsme, l’Agent tombe au champ d’honneur, emporté par ses blessures.",
+    "duration": "Permanente"
+  },
+  {
+    "type": "séquelle",
+    "name": "Handicap",
+    "description": "L’Agent souffre d’une blessure permanente. Le joueur détermine l’un des attributs de son personnage : les groupements de dés de tous les domaines de compétence qui s’y rapportent diminuent définitivement de 1D.",
+    "duration": "Permanente"
+  },
+  {
+    "type": "séquelle",
+    "name": "Blessure critique",
+    "description": "L’Agent est affublé d’une sérieuse blessure, qui nécessite une intervention rapide : l’escouade doit trouver un médecin dans la zone ou procéder ellemême à l’opération au moyen d’un jet de Médecine (8). Si la blessure n’est pas traitée et l’Agent stabilisé dans la prochaine heure, il mourra",
+    "duration": "1h00"
+  },
+  {
+    "type": "séquelle",
+    "name": "Effondrement",
+    "description": "Éprouvé par le combat, l’Agent peine à se remobiliser et à reprendre les armes : il ne peut plus déclencher d’action d’éclat (un « 10 » comptant uniquement pour un tour de force).",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "séquelle",
+    "name": "Traumatisme",
+    "description": "Le dernier combat a passablement ébranlé l’Agent, laissant ce dernier hagard et vulnérable. Il ne peut plus déclencher ou profiter des effets d’un Exploit",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "séquelle",
+    "name": "Tremblements",
+    "description": "L’Agent est pris de tremblements et ne parvient plus à se concentrer. Le coût des Manoeuvres (génériques et spécialistes) augmente de +1.",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "séquelle",
+    "name": "Écorchures",
+    "description": "L’Agent souffre de multiples blessures qui, bien que n’engageant pas sa survie, perturbent sa concentration et son efficacité au combat. La difficulté des jets de compétence augmente de +1.",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "séquelle",
+    "name": "Épuisement",
+    "description": "La frénésie du combat et les douleurs lancinantes sapent la détermination de l’Agent. Sa jauge de santé diminue de 2 (passant de 10 à 8) ; les cases déjà cochées ne se déportent pas en raison de l’Épuisement.",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "séquelle",
+    "name": "Équipement détruit",
+    "description": "L’équipement de protection de l’Agent lui a sauvé la vie, mais il est désormais trop endommagé pour servir. La valeur de protection chute à 0 : il n’est pas possible de réparer l’équipement d’une quelconque manière. Si l’Agent ne portait pas d’équipement de protection, il obtient immédiatement la lésion « Blessure critique ».",
+    "duration": "Jusqu'à ré-équipement"
+  },
+  {
+    "type": "séquelle",
+    "name": "Miraculé",
+    "description": "Les vêtements et l’équipement de l’Agent sont roussis par le feu des combats, mais ce dernier s’en tire indemne.",
+    "duration": "Jusqu'à la fin de la mission"
+  },
+  {
+    "type": "urgence vitale",
+    "name": "A l'agonie",
+    "description": "Lorsqu’un Agent est À l’agonie, il est privé de ses forces et son pronostic vital est engagé. Ses coéquipiers disposent de 1D10 + 2 minutes/manches pour se porter à son secours et le stabiliser. Si l’Agent n’est pas stabilisé dans ce délai, il MEURT.",
+    "duration": "Jusqu'à la fin de la mission"
   }
 ]
