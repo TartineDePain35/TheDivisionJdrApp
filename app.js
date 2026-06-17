@@ -2,6 +2,7 @@ const sections = {
   landing: document.getElementById('landing'),
   createAgent: document.getElementById('createAgent'),
   mainPage: document.getElementById('mainPage'),
+  competences: document.getElementById('competencesView'),
 };
 const loginForm = document.getElementById('loginForm');
 const createAgentBtn = document.getElementById('createAgentBtn');
@@ -25,6 +26,7 @@ const attributesView = document.getElementById('attributesView');
 const inventoryBtn = document.getElementById('inventoryBtn');
 const skillsBtn = document.getElementById('skillsBtn');
 const attributesBtn = document.getElementById('attributesBtn');
+const competencesBtn = document.getElementById('competencesBtn');
 const inventoryList = document.getElementById('inventoryList');
 const inventoryCapacityLabel = document.getElementById('inventoryCapacity');
 const inventoryWeight = document.getElementById('inventoryWeight');
@@ -32,6 +34,11 @@ const inventoryFill = document.getElementById('inventoryFill');
 const addInventoryItemBtn = document.getElementById('addInventoryItemBtn');
 const saveSkillsBtn = document.getElementById('saveSkillsBtn');
 const saveAttributesBtn = document.getElementById('saveAttributesBtn');
+const saveCompetencesBtn = document.getElementById('saveCompetencesBtn');
+const competencesContainer = document.getElementById('competencesContainer');
+const competenceDescModal = document.getElementById('competenceDescModal');
+const closeCompetenceDescBtn = document.getElementById('closeCompetenceDescBtn');
+const competenceDescContent = document.getElementById('competenceDescContent');
 const skillsReserveCount = document.getElementById('skillsReserveCount');
 const attributesReserveCount = document.getElementById('attributesReserveCount');
 const deleteItemModal = document.getElementById('deleteItemModal');
@@ -111,6 +118,8 @@ let pendingDeleteIndex = null;
 let weaponsData = [];
 let medicalData = [];
 let equipmentData = [];
+let competencesHierarchy = [];
+let competencesState = {};
 let skillsState = {
   reserve: 0,
   stats: {
@@ -127,6 +136,8 @@ let attributesState = {
     technique: 1,
   },
 };
+let baseStats = {};
+let baseAttributes = {};
 
 const EFFECT_ICONS = {
   blessure: '🩸',
@@ -889,26 +900,90 @@ function openAttributesScreen() {
   renderAttributesScreen();
 }
 
+async function openCompetencesScreen() {
+  if (!currentAgent) return;
+  
+  try {
+    await loadCompetencesData(); // ✅ Attend le chargement
+
+    // ✅ Vérifier que les données sont prêtes
+    if (!competencesHierarchy.length) {
+      showToast('Aucune compétence trouvée pour cet agent.');
+      return;
+    }
+
+    dashboardView.classList.add('hidden');
+    inventoryView.classList.add('hidden');
+    skillsView?.classList.add('hidden');
+    attributesView?.classList.add('hidden');
+    if (competencesView) competencesView.classList.remove('hidden');
+    heroMission.textContent = 'Compétences';
+    if (logoutBtn) logoutBtn.classList.remove('hidden');
+    if (homeBtn) homeBtn.classList.remove('hidden');
+
+    renderCompetencesScreen();
+  } catch (error) {
+    console.error('Failed to open competences screen:', error);
+    showToast('Impossible de charger les compétences. Vérifiez votre connexion.');
+    // ✅ Réinitialiser l'UI
+    competencesHierarchy = [];
+    competencesState = {};
+  }
+}
+
+function deepMergeCompetences(saved) {
+  if (!saved || !competencesState) return;
+  
+  for (const attrKey in saved) {
+    if (competencesState[attrKey]) {
+      for (const subAttrKey in saved[attrKey]) {
+        if (competencesState[attrKey][subAttrKey]) {
+          for (const groupKey in saved[attrKey][subAttrKey]) {
+            if (competencesState[attrKey][subAttrKey][groupKey]) {
+              for (const skillKey in saved[attrKey][subAttrKey][groupKey]) {
+                if (competencesState[attrKey][subAttrKey][groupKey][skillKey]) {
+                  competencesState[attrKey][subAttrKey][groupKey][skillKey].value = 
+                    saved[attrKey][subAttrKey][groupKey][skillKey]?.value || 0;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 function initializeSkillsState() {
-  const baseStats = currentAgent?.stats || { speed: 1, resilience: 1, vigor: 1 };
+  const agentStats = currentAgent?.stats || { speed: 1, resilience: 1, vigor: 1 };
+  baseStats = {
+    speed: Number(agentStats.speed ?? 1),
+    resilience: Number(agentStats.resilience ?? 1),
+    vigor: Number(agentStats.vigor ?? 1),
+  };
   skillsState = {
     reserve: Number(currentAgent?.availableStatsPoints ?? 0),
     stats: {
-      speed: Number(baseStats.speed ?? 1),
-      resilience: Number(baseStats.resilience ?? 1),
-      vigor: Number(baseStats.vigor ?? 1),
+      speed: Number(agentStats.speed ?? 1),
+      resilience: Number(agentStats.resilience ?? 1),
+      vigor: Number(agentStats.vigor ?? 1),
     },
   };
 }
 
 function initializeAttributesState() {
-  const baseAttributes = currentAgent?.attributes || { conscience: 1, dexterity: 1, technique: 1 };
+  const agentAttributes = currentAgent?.attributes || { conscience: 1, dexterity: 1, technique: 1 };
+  baseAttributes = {
+    conscience: Number(agentAttributes.conscience ?? 1),
+    dexterity: Number(agentAttributes.dexterity ?? 1),
+    technique: Number(agentAttributes.technique ?? 1),
+  };
   attributesState = {
     reserve: Number(currentAgent?.availableAttributesPoints ?? 0),
     attributes: {
-      conscience: Number(baseAttributes.conscience ?? 1),
-      dexterity: Number(baseAttributes.dexterity ?? 1),
-      technique: Number(baseAttributes.technique ?? 1),
+      conscience: Number(agentAttributes.conscience ?? 1),
+      dexterity: Number(agentAttributes.dexterity ?? 1),
+      technique: Number(agentAttributes.technique ?? 1),
     },
   };
 }
@@ -938,30 +1013,358 @@ function renderAttributesScreen() {
 }
 
 function updateSkillsButtons() {
-  const plusButtons = Array.from(document.querySelectorAll('#skillsView [data-stat]'));
-  plusButtons.forEach((button) => {
-    button.disabled = skillsState.reserve <= 0;
+  ['speed', 'resilience', 'vigor'].forEach((stat) => {
+    const increaseBtn = document.querySelector(`#skillsView [data-stat="${stat}"][data-action="increase"]`);
+    const decreaseBtn = document.querySelector(`#skillsView [data-stat="${stat}"][data-action="decrease"]`);
+    
+    if (increaseBtn) {
+      increaseBtn.disabled = skillsState.reserve <= 0;
+    }
+    
+    if (decreaseBtn) {
+      const currentValue = skillsState.stats[stat];
+      const baseValue = baseStats[stat] || 1;
+      decreaseBtn.style.display = currentValue > baseValue ? 'inline-block' : 'none';
+    }
   });
 }
 
 function updateAttributesButtons() {
-  const plusButtons = Array.from(document.querySelectorAll('#attributesView [data-attr]'));
-  plusButtons.forEach((button) => {
-    button.disabled = attributesState.reserve <= 0;
+  ['conscience', 'dexterity', 'technique'].forEach((attr) => {
+    const increaseBtn = document.querySelector(`#attributesView [data-attr="${attr}"][data-action="increase"]`);
+    const decreaseBtn = document.querySelector(`#attributesView [data-attr="${attr}"][data-action="decrease"]`);
+    
+    if (increaseBtn) {
+      increaseBtn.disabled = attributesState.reserve <= 0;
+    }
+    
+    if (decreaseBtn) {
+      const currentValue = attributesState.attributes[attr];
+      const baseValue = baseAttributes[attr] || 1;
+      decreaseBtn.style.display = currentValue > baseValue ? 'inline-block' : 'none';
+    }
   });
 }
 
-function changeSkillStat(stat) {
-  if (skillsState.reserve <= 0) return;
-  skillsState.stats[stat] += 1;
-  skillsState.reserve -= 1;
+// Compétences structure - sera chargée depuis skills.json
+let competencesData = null;
+
+async function loadCompetencesData() {
+  if (!currentAgent?.id) {
+    competencesHierarchy = [];
+    competencesState = {};
+    return;
+  }
+  
+    try {
+    const response = await fetch(`/api/skills/hierarchy/${currentAgent.id}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    // ✅ Gérer les 2 formats (tableau direct ou objet {hierarchy: [...]})
+    competencesHierarchy = Array.isArray(data) ? data : (data.hierarchy || []);
+
+    // ✅ Reconstruire competencesState avec les IDs comme clés
+    competencesState = {};
+    for (const group of competencesHierarchy) {
+      const groupKey = group.id;
+      competencesState[groupKey] = { ...group, value: group.value || 0 };
+
+      for (const attribute of group.attributes || []) {
+        const attrKey = attribute.id;
+        competencesState[groupKey][attrKey] = { ...attribute, value: attribute.value || 0 };
+
+        for (const skillGroup of attribute.skillGroups || []) {
+          const sgKey = skillGroup.id;
+          competencesState[groupKey][attrKey][sgKey] = { ...skillGroup, value: skillGroup.value || 0 };
+
+          for (const skill of skillGroup.skills || []) {
+            const skillKey = skill.id;
+            competencesState[groupKey][attrKey][sgKey][skillKey] = { ...skill, value: skill.value || 0 };
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error loading competences:', error);
+    // ✅ Initialisation par défaut en cas d'erreur
+    competencesHierarchy = [];
+    competencesState = {};
+    throw error; // Permet à openCompetencesScreen de gérer l'erreur
+  }
+}
+
+function normalizeKey(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e');
+}
+
+function showCompetenceDescription(description) {
+  if (!competenceDescModal || !competenceDescContent) return;
+  competenceDescContent.textContent = description;
+  competenceDescModal.classList.add('active');
+}
+
+function hideCompetenceDescription() {
+  if (competenceDescModal) {
+    competenceDescModal.classList.remove('active');
+  }
+}
+
+function renderCompetencesScreen() {
+  // ✅ Vérifier que tout est initialisé
+  if (!competencesContainer || !currentAgent || !competencesState || !competencesHierarchy.length) {
+    competencesContainer.innerHTML = '<div class="competence-empty">Aucune compétence disponible.</div>';
+    return;
+  }
+
+  competencesContainer.innerHTML = '';
+  const attrKeys = Object.keys(competencesState).filter(k => !['name', 'description', 'id', 'value'].includes(k));
+
+  attrKeys.forEach(attrKey => {
+    const attr = competencesState[attrKey];
+    const attrValue = attr.value || 0;
+    const attrDiv = document.createElement('div');
+    attrDiv.className = 'competence-level';
+    attrDiv.dataset.level = '1';
+    attrDiv.dataset.key = attrKey;
+    attrDiv.innerHTML = `
+      <div class="competence-header">
+        <span class="competence-name">${attr.name || 'Inconnu'}</span>
+        <span class="competence-value">Niveau: ${attrValue}</span>
+        ${attr.description ? '<button class="info-icon" title="Info">?</button>' : ''}
+      </div>
+    `;
+    const infoBtn = attrDiv.querySelector('.info-icon');
+    if (infoBtn) {
+      infoBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showCompetenceDescription(attr.description);
+      });
+    }
+    attrDiv.addEventListener('click', () => renderCompetencesLevel(1, attrKey));
+    competencesContainer.appendChild(attrDiv);
+  });
+}
+
+function renderCompetencesLevel(level, key, parentKeys = []) {
+  const path = [...parentKeys, key];
+  let current = competencesState;
+  for (const k of path) {
+    current = current[k];
+  }
+
+  competencesContainer.innerHTML = '';
+
+  // Add back button if not at root level
+  if (level > 0) {
+    const backDiv = document.createElement('div');
+    backDiv.className = 'competence-back';
+    backDiv.innerHTML = '<button class="btn btn-tertiary">← Retour</button>';
+    backDiv.addEventListener('click', () => {
+      if (level === 1) {
+        // Back to root (attributes list)
+        renderCompetencesScreen();
+      } else {
+        const backLevel = level - 1;
+        const backPath = path.slice(0, backLevel);
+        renderCompetencesLevel(backLevel, backPath[backLevel - 1], backPath.slice(0, backLevel - 1));
+      }
+    });
+    competencesContainer.appendChild(backDiv);
+  }
+
+  if (level === 1) {
+    // Show sub-attributes - filter out system properties
+    const subAttrKeys = Object.keys(current).filter(k => !['name', 'description', 'id', 'value', 'attributes'].includes(k));
+    subAttrKeys.forEach(subAttrKey => {
+      const subAttr = current[subAttrKey];
+      const subAttrValue = subAttr.value || 0;
+      const subAttrDiv = document.createElement('div');
+      subAttrDiv.className = 'competence-level';
+      subAttrDiv.dataset.level = '2';
+      subAttrDiv.dataset.key = subAttrKey;
+      subAttrDiv.innerHTML = `
+        <div class="competence-header">
+          <span class="competence-name">${subAttr.name}</span>
+          <span class="competence-value">Niveau: ${subAttrValue}</span>
+          ${subAttr.description ? '<button class="info-icon" title="Info">?</button>' : ''}
+        </div>
+      `;
+      
+      const infoBtn = subAttrDiv.querySelector('.info-icon');
+      if (infoBtn) {
+        infoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showCompetenceDescription(subAttr.description);
+        });
+      }
+      
+      subAttrDiv.addEventListener('click', () => renderCompetencesLevel(2, subAttrKey, path));
+      competencesContainer.appendChild(subAttrDiv);
+    });
+  } else if (level === 2) {
+    // Show groups - filter out system properties
+    const groupKeys = Object.keys(current).filter(k => !['name', 'description', 'id', 'value', 'skillGroups'].includes(k));
+    groupKeys.forEach(groupKey => {
+      const group = current[groupKey];
+      const groupValue = group.value || 0;
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'competence-level';
+      groupDiv.dataset.level = '3';
+      groupDiv.dataset.key = groupKey;
+      groupDiv.innerHTML = `
+        <div class="competence-header">
+          <span class="competence-name">${group.name}</span>
+          <span class="competence-value">Niveau: ${groupValue}</span>
+          ${group.description ? '<button class="info-icon" title="Info">?</button>' : ''}
+        </div>
+      `;
+      
+      const infoBtn = groupDiv.querySelector('.info-icon');
+      if (infoBtn) {
+        infoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showCompetenceDescription(group.description);
+        });
+      }
+      
+      groupDiv.addEventListener('click', () => renderCompetencesLevel(3, groupKey, path));
+      competencesContainer.appendChild(groupDiv);
+    });
+  } else if (level === 3) {
+    // Show skills with points - filter out system properties
+    const skillKeys = Object.keys(current).filter(k => !['name', 'description', 'id', 'value', 'skills'].includes(k));
+    skillKeys.forEach(skillKey => {
+      const skill = current[skillKey];
+      const skillDiv = document.createElement('div');
+      skillDiv.className = 'competence-skill';
+      skillDiv.innerHTML = `
+        <div class="competence-header">
+          <span class="competence-name">${skill.name}</span>
+          <span class="competence-value">Niveau: ${skill.value}</span>
+          ${skill.description ? '<button class="info-icon" title="Info">?</button>' : ''}
+        </div>
+        <div class="competence-controls">
+          <button type="button" class="icon-btn" data-action="decrease" data-key="${skillKey}">-</button>
+          <span>${skill.value}</span>
+          <button type="button" class="icon-btn" data-action="increase" data-key="${skillKey}">+</button>
+        </div>
+      `;
+      
+      const infoBtn = skillDiv.querySelector('.info-icon');
+      if (infoBtn) {
+        infoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showCompetenceDescription(skill.description);
+        });
+      }
+      
+      skillDiv.addEventListener('click', (e) => {
+        if (e.target.dataset.action) {
+          const action = e.target.dataset.action;
+          const skillId = e.target.dataset.skillId;
+          changeCompetenceValue(path, level + 1, skillId, action);
+        }
+      });
+      competencesContainer.appendChild(skillDiv);
+    });
+  }
+}
+
+async function changeCompetenceValue(path, level, entityKey, action) {
+  // Find and update the entity in competencesHierarchy directly
+  let targetEntity = null;
+  
+  if (level === 1) {
+    // Find attribute-group
+    targetEntity = competencesHierarchy.find(g => g.id === entityKey);
+  } else if (level === 2) {
+    // Find attribute in the group specified by path[0]
+    const group = competencesHierarchy.find(g => g.id === path[0]);
+    if (group) {
+      targetEntity = group.attributes.find(a => a.id === entityKey);
+    }
+  } else if (level === 3) {
+    // Find skill-group in the attribute specified by path[0] -> path[1]
+    const group = competencesHierarchy.find(g => g.id === path[0]);
+    if (group) {
+      const attribute = group.attributes.find(a => a.id === path[1]);
+      if (attribute) {
+        targetEntity = attribute.skillGroups.find(sg => sg.id === entityKey);
+      }
+    }
+  } else if (level === 4) {
+    // Find skill in the skill-group specified by path[0] -> path[1] -> path[2]
+    const group = competencesHierarchy.find(g => g.id === path[0]);
+    if (group) {
+      const attribute = group.attributes.find(a => a.id === path[1]);
+      if (attribute) {
+        const skillGroup = attribute.skillGroups.find(sg => sg.id === path[2]);
+        if (skillGroup) {
+          targetEntity = skillGroup.skills.find(s => s.id === entityKey);
+        }
+      }
+    }
+  }
+  
+  if (!targetEntity) {
+    console.error('Target entity not found:', { level, path, entityKey });
+    return;
+  }
+  
+  // Calculate new value
+  const newValue = action === 'increase' ? (targetEntity.value || 0) + 1 : Math.max(0, (targetEntity.value || 0) - 1);
+  targetEntity.value = newValue;
+  
+  // Rebuild competencesState from updated hierarchy (without API call)
+  competencesState = {};
+  for (const group of competencesHierarchy) {
+    const groupKey = group.id;  // ✅ ID au lieu de normalizeKey
+    competencesState[groupKey] = { ...group, value: group.value || 0 };
+
+    for (const attribute of group.attributes || []) {
+      const attrKey = attribute.id;  // ✅ ID
+      competencesState[groupKey][attrKey] = { ...attribute, value: attribute.value || 0 };
+
+      for (const skillGroup of attribute.skillGroups || []) {
+        const sgKey = skillGroup.id;  // ✅ ID
+        competencesState[groupKey][attrKey][sgKey] = { ...skillGroup, value: skillGroup.value || 0 };
+
+        for (const skill of skillGroup.skills || []) {
+          const skillKey = skill.id;  // ✅ ID
+          competencesState[groupKey][attrKey][sgKey][skillKey] = { ...skill, value: skill.value || 0 };
+        }
+      }
+    }
+  }
+  
+  // Re-render
+  renderCompetencesLevel(level, path[level - 1], path.slice(0, level - 1));
+}
+
+function changeSkillStat(stat, action) {
+  if (action === 'increase') {
+    if (skillsState.reserve <= 0) return;
+    skillsState.stats[stat] += 1;
+    skillsState.reserve -= 1;
+  } else if (action === 'decrease') {
+    if (skillsState.stats[stat] <= (baseStats[stat] || 1)) return;
+    skillsState.stats[stat] -= 1;
+    skillsState.reserve += 1;
+  }
   renderSkillsScreen();
 }
 
-function changeAttributeStat(attr) {
-  if (attributesState.reserve <= 0) return;
-  attributesState.attributes[attr] += 1;
-  attributesState.reserve -= 1;
+function changeAttributeStat(attr, action) {
+  if (action === 'increase') {
+    if (attributesState.reserve <= 0) return;
+    attributesState.attributes[attr] += 1;
+    attributesState.reserve -= 1;
+  } else if (action === 'decrease') {
+    if (attributesState.attributes[attr] <= (baseAttributes[attr] || 1)) return;
+    attributesState.attributes[attr] -= 1;
+    attributesState.reserve += 1;
+  }
   renderAttributesScreen();
 }
 
@@ -991,11 +1394,75 @@ async function saveAttributesAllocation() {
   openDashboardView();
 }
 
+async function saveCompetencesAllocation() {
+  if (!currentAgent?.id) return;
+  
+  try {
+    // Save all values via API
+    for (const group of competencesHierarchy) {
+      await fetch('/api/skills/attribute-group', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: currentAgent.id,
+          groupId: group.id,
+          value: group.value || 0
+        })
+      });
+      
+      for (const attribute of group.attributes || []) {
+        await fetch('/api/skills/attribute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: currentAgent.id,
+            attributeId: attribute.id,
+            value: attribute.value || 0
+          })
+        });
+        
+        for (const skillGroup of attribute.skillGroups || []) {
+          await fetch('/api/skills/skill-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agentId: currentAgent.id,
+              groupId: skillGroup.id,
+              value: skillGroup.value || 0
+            })
+          });
+          
+          for (const skill of skillGroup.skills || []) {
+            await fetch('/api/skills/skill', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                agentId: currentAgent.id,
+                skillId: skill.id,
+                value: skill.value || 0
+              })
+            });
+          }
+        }
+      }
+    }
+   } catch (error) {
+      console.error('Error saving competences:', error);
+      showToast('Erreur lors de la sauvegarde des compétences.');
+      return;
+  }
+  
+  showToast('Compétences mises à jour.');
+  renderAgent(currentAgent);
+  openDashboardView();
+}
+
 function openDashboardView() {
   dashboardView.classList.remove('hidden');
   inventoryView.classList.add('hidden');
   skillsView?.classList.add('hidden');
   attributesView?.classList.add('hidden');
+  competencesView?.classList.add('hidden');
   heroMission.textContent = 'Tableau de bord de l’Aventure';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.add('hidden');
@@ -1473,15 +1940,22 @@ wizardBack.addEventListener('click', () => {
 inventoryBtn.addEventListener('click', openInventoryScreen);
 if (skillsBtn) skillsBtn.addEventListener('click', openSkillsScreen);
 if (attributesBtn) attributesBtn.addEventListener('click', openAttributesScreen);
+if (competencesBtn) competencesBtn.addEventListener('click', openCompetencesScreen);
 if (saveSkillsBtn) saveSkillsBtn.addEventListener('click', saveSkillsAllocation);
 if (saveAttributesBtn) saveAttributesBtn.addEventListener('click', saveAttributesAllocation);
+if (saveCompetencesBtn) saveCompetencesBtn.addEventListener('click', saveCompetencesAllocation);
+if (closeCompetenceDescBtn) closeCompetenceDescBtn.addEventListener('click', hideCompetenceDescription);
+if (competenceDescModal) competenceDescModal.addEventListener('click', (e) => {
+  if (e.target === competenceDescModal) hideCompetenceDescription();
+});
 
 skillsView?.addEventListener('click', (event) => {
   const button = event.target.closest('[data-stat]');
   if (!button) return;
   const stat = button.dataset.stat;
+  const action = button.dataset.action || 'increase';
   if (stat) {
-    changeSkillStat(stat);
+    changeSkillStat(stat, action);
   }
 });
 
@@ -1489,8 +1963,9 @@ attributesView?.addEventListener('click', (event) => {
   const button = event.target.closest('[data-attr]');
   if (!button) return;
   const attr = button.dataset.attr;
+  const action = button.dataset.action || 'increase';
   if (attr) {
-    changeAttributeStat(attr);
+    changeAttributeStat(attr, action);
   }
 });
 addInventoryItemBtn.addEventListener('click', openAddItemModal);
