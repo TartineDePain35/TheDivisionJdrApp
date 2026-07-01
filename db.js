@@ -188,32 +188,42 @@ function getAgentByName(name) {
 function loadEffectsFromJson() {
   const effectsJsonPath = path.join(__dirname, 'json', 'effects.json');
   if (!fs.existsSync(effectsJsonPath)) {
-    return;
-  }
-
-  const rows = all('SELECT id FROM effects LIMIT 1');
-  if (rows.length > 0) {
+    console.log('⚠️  Fichier effects.json introuvable, utilisation des données existantes.');
     return;
   }
 
   try {
     const payload = fs.readFileSync(effectsJsonPath, 'utf8');
     const effects = JSON.parse(payload);
+    
+    if (!Array.isArray(effects) || effects.length === 0) {
+      console.log('⚠️  effects.json est vide ou invalide.');
+      return;
+    }
+
+    // Vider la table existante
+    run('DELETE FROM effects');
+    
+    // Insérer toutes les données depuis le JSON
     const insertStmt = db.prepare(
       'INSERT INTO effects (type, name, description, duration) VALUES (?, ?, ?, ?)'
     );
-    for (const effect of Array.isArray(effects) ? effects : []) {
+    
+    let insertedCount = 0;
+    for (const effect of effects) {
       insertStmt.run([
         effect.type || '',
         effect.name || '',
         effect.description || '',
         effect.duration || '',
       ]);
+      insertedCount++;
     }
     insertStmt.free();
     saveDatabase();
+    console.log(`✅ Table "effects" alimentée avec ${insertedCount} effets depuis effects.json.`);
   } catch (error) {
-    console.error('Impossible de charger effects.json:', error);
+    console.error('❌ Erreur lors du chargement de effects.json:', error);
   }
 }
 
@@ -447,6 +457,10 @@ function updateAgent(agent) {
     clearAgentEffects(agent.id);
     assignEffectsToAgent(agent.id, agent.assignedEffects);
   }
+  
+  // ✅ Synchroniser les attributs vers les tables de compétences
+  syncAgentAttributesToSkills(agent.id, agent.attributes);
+  
   return getAgentById(agent.id);
 }
 
@@ -806,6 +820,33 @@ function setAgentSkillValue(agentId, skillId, value) {
   }
 }
 
+// ✅ Synchronise les valeurs des attributs de l'agent vers les tables de compétences
+function syncAgentAttributesToSkills(agentId, attributes) {
+  if (!attributes) return;
+  
+  const parsedAttributes = typeof attributes === 'string' ? parseJsonValue(attributes) : attributes;
+  if (!parsedAttributes || typeof parsedAttributes !== 'object') return;
+  
+  // S'assurer que parsedAttributes est un objet valide
+  if (parsedAttributes === null || Array.isArray(parsedAttributes)) return;
+  
+  // Récupérer tous les attributs de compétence
+  const allAttributes = all('SELECT id, name FROM skill_attributes');
+  
+  for (const attr of allAttributes) {
+    const normalizedAttrName = normalizeAttributeName(attr.name);
+    
+    // Trouver la correspondance avec les attributs de l'agent
+    for (const [key, value] of Object.entries(parsedAttributes)) {
+      const normalizedKey = normalizeAttributeName(key);
+      if (normalizedAttrName === normalizedKey) {
+        setAgentAttributeValue(agentId, attr.id, Number(value) || 1);
+        break;
+      }
+    }
+  }
+}
+
 // Get children of an attribute group (attributes)
 function getAttributeGroupChildren(groupId) {
   return all('SELECT id FROM skill_attributes WHERE group_id = ?', [groupId]);
@@ -884,6 +925,10 @@ function validateHierarchy(agentId, entityType, entityId, newValue) {
 
 // Initialize default skill values for a new agent
 function initializeAgentSkills(agentId) {
+  const agent = getAgentById(agentId);
+  const parsedAttrs = agent?.attributes ? parseJsonValue(agent.attributes) : null;
+  const agentAttributes = (parsedAttrs && typeof parsedAttrs === 'object') ? parsedAttrs : {};
+  
   const groups = all('SELECT id FROM skill_attribute_groups');
   
   for (const group of groups) {
@@ -892,7 +937,21 @@ function initializeAgentSkills(agentId) {
     
     const attributes = getAttributeGroupChildren(group.id);
     for (const attr of attributes) {
-      setAgentAttributeValue(agentId, attr.id, 0);
+      // ✅ Récupérer la valeur de l'attribut depuis agent.attributes si disponible
+      let attrValue = 0;
+      const attrRow = get('SELECT name FROM skill_attributes WHERE id = ?', [attr.id]);
+      if (attrRow) {
+        const normalizedAttrName = normalizeAttributeName(attrRow.name);
+        
+        for (const [key, value] of Object.entries(agentAttributes)) {
+          const normalizedKey = normalizeAttributeName(key);
+          if (normalizedAttrName === normalizedKey) {
+            attrValue = Number(value) || 1;
+            break;
+          }
+        }
+      }
+      setAgentAttributeValue(agentId, attr.id, attrValue);
       
       const skillGroups = getAttributeChildren(attr.id);
       for (const sg of skillGroups) {
@@ -907,8 +966,69 @@ function initializeAgentSkills(agentId) {
   }
 }
 
+// Helper function to normalize attribute names for comparison
+function normalizeAttributeName(name) {
+  if (!name) return '';
+  return String(name).toLowerCase()
+    .replace(/[^a-z0-9]/g, '')  // Remove all non-alphanumeric
+    .replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e')
+    .replace(/à/gi, 'a').replace(/â/gi, 'a')
+    .replace(/ç/gi, 'c');
+}
+
 // Get full skills hierarchy for an agent
 function getAgentSkillsHierarchy(agentId) {
+  const agent = getAgentById(agentId);
+  const parsedAttrs = agent?.attributes ? parseJsonValue(agent.attributes) : null;
+  const agentAttributes = (parsedAttrs && typeof parsedAttrs === 'object') ? parsedAttrs : {};
+  
+  // ✅ Synchroniser automatiquement les attributs de l'agent vers les tables de compétences
+  if (Object.keys(agentAttributes).length > 0) {
+    syncAgentAttributesToSkills(agentId, agent.attributes);
+  }
+  
+  // ✅ Charger TOUTES les valeurs des groupes pour cet agent en UNE requête
+  const groupValues = all(
+    'SELECT group_id, value FROM agent_attribute_group_values WHERE agent_id = ?',
+    [agentId]
+  );
+  
+  // Créer un mapping group_id -> value (normaliser les clés en number)
+  const groupValueMap = {};
+  for (const gv of groupValues) {
+    groupValueMap[Number(gv.group_id)] = gv.value;
+  }
+  
+  // ✅ Charger TOUTES les valeurs des attributs pour cet agent
+  const attrValues = all(
+    'SELECT attribute_id, value FROM agent_attribute_values WHERE agent_id = ?',
+    [agentId]
+  );
+  const attrValueMap = {};
+  for (const av of attrValues) {
+    attrValueMap[Number(av.attribute_id)] = av.value;
+  }
+  
+  // ✅ Charger TOUTES les valeurs des skill_groups pour cet agent
+  const skillGroupValues = all(
+    'SELECT group_id, value FROM agent_skill_group_values WHERE agent_id = ?',
+    [agentId]
+  );
+  const skillGroupValueMap = {};
+  for (const sgv of skillGroupValues) {
+    skillGroupValueMap[Number(sgv.group_id)] = sgv.value;
+  }
+  
+  // ✅ Charger TOUTES les valeurs des skills pour cet agent
+  const skillValues = all(
+    'SELECT skill_id, value FROM agent_skill_values WHERE agent_id = ?',
+    [agentId]
+  );
+  const skillValueMap = {};
+  for (const sv of skillValues) {
+    skillValueMap[Number(sv.skill_id)] = sv.value;
+  }
+  
   const groups = all('SELECT id, name, description FROM skill_attribute_groups ORDER BY id');
   
   return groups.map(group => {
@@ -916,22 +1036,38 @@ function getAgentSkillsHierarchy(agentId) {
     
     return {
       ...group,
-      value: getAgentAttributeGroupValue(agentId, group.id),
+      // ✅ Utiliser le mapping pré-chargé (fallback à 0 si non trouvé)
+      value: groupValueMap[group.id] || 0,
       attributes: attributes.map(attr => {
         const skillGroups = all('SELECT id, name, description FROM skill_groups WHERE attribute_id = ? ORDER BY id', [attr.id]);
         
+        // ✅ Utiliser le mapping pour les attributs
+        let attributeValue = attrValueMap[attr.id] || 0;
+        const normalizedAttrName = normalizeAttributeName(attr.name);
+        
+        // Fallback sur agent.attributes si la valeur n'est pas dans la table
+        for (const [key, value] of Object.entries(agentAttributes)) {
+          const normalizedKey = normalizeAttributeName(key);
+          if (normalizedAttrName === normalizedKey) {
+            attributeValue = Number(value) || attributeValue;
+            break;
+          }
+        }
+        
         return {
           ...attr,
-          value: getAgentAttributeValue(agentId, attr.id),
+          value: attributeValue,
           skillGroups: skillGroups.map(sg => {
             const skills = all('SELECT id, name, description FROM skills WHERE group_id = ? ORDER BY id', [sg.id]);
             
             return {
               ...sg,
-              value: getAgentSkillGroupValue(agentId, sg.id),
+              // ✅ Utiliser le mapping pour les skill_groups
+              value: skillGroupValueMap[sg.id] || 0,
               skills: skills.map(skill => ({
                 ...skill,
-                value: getAgentSkillValue(agentId, skill.id)
+                // ✅ Utiliser le mapping pour les skills
+                value: skillValueMap[skill.id] || 0
               }))
             };
           })

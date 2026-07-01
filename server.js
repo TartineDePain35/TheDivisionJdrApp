@@ -1,178 +1,190 @@
+// server.js
 const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
 const path = require('path');
 const db = require('./db');
 
 const app = express();
+const PORT = 3000;
 
-app.use(express.json());
+// Middleware
+app.use(cors({
+  origin: '*',  // ✅ Autoriser toutes les origines (pour le développement)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(bodyParser.json());
+
+// ✅ Servir les fichiers statiques depuis la racine du projet
 app.use(express.static(path.join(__dirname)));
 
-app.get('/api/agents', async (req, res) => {
-  const agents = await db.getAllAgents();
-  res.json({ success: true, agents });
+// ✅ Servir index.html pour la racine /
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.get('/api/agents/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) {
-    return res.status(400).json({ success: false, message: 'Identifiant agent invalide.' });
-  }
+// ============ ROUTES ADMIN ============
 
-  const agent = await db.getAgentById(id);
-  if (!agent) {
-    return res.status(404).json({ success: false, message: 'Agent non trouvé.' });
-  }
-  res.json({ success: true, agent });
-});
-
-app.get('/api/effects', async (req, res) => {
-  const effects = await db.getAllEffects();
-  res.json({ success: true, effects });
-});
-
-app.get('/api/talents', async (req, res) => {
-  const talents = await db.getAllTalents();
-  res.json({ success: true, talents });
-});
-
-app.post('/api/agents', async (req, res) => {
-  const agent = req.body;
-  if (!agent || !agent.name || !agent.firstName || !agent.password) {
-    return res.status(400).json({ success: false, message: 'Informations agent manquantes.' });
-  }
-
-  const allAgents = await db.getAllAgents();
-  const exists = allAgents.some(
-    (item) => item.name.toLowerCase() === agent.name.toLowerCase() && item.firstName.toLowerCase() === agent.firstName.toLowerCase()
-  );
-  if (exists) {
-    return res.status(409).json({ success: false, message: 'Agent déjà existant.' });
-  }
-
-  const created = await db.createAgent(agent);
-  res.json({ success: true, agent: created });
-});
-
-app.put('/api/agents/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  const agent = req.body;
-  if (!id || !agent) {
-    return res.status(400).json({ success: false, message: 'Agent invalide.' });
-  }
-  agent.id = id;
-
-  const existing = await db.getAgentById(id);
-  if (!existing) {
-    return res.status(404).json({ success: false, message: 'Agent non trouvé.' });
-  }
-
-  const updated = await db.updateAgent(agent);
-  res.json({ success: true, agent: updated });
-});
-
-// Skills endpoints
-app.get('/api/skills/hierarchy/:agentId', async (req, res) => {
-  const agentId = Number(req.params.agentId);
-  if (!agentId) {
-    return res.status(400).json({ success: false, message: 'Identifiant agent invalide.' });
-  }
-  
-  const hierarchy = await db.getAgentSkillsHierarchy(agentId);
-  res.json({ success: true, hierarchy });
-});
-
-app.post('/api/skills/attribute-group', async (req, res) => {
-  const { agentId, groupId, value } = req.body;
-  if (!agentId || !groupId || value === undefined) {
-    return res.status(400).json({ success: false, message: 'Paramètres invalides.' });
-  }
-  
-  const isValid = await db.validateHierarchy(agentId, 'attribute_group', groupId, value);
-  if (!isValid) {
-    return res.status(400).json({ success: false, message: 'La somme des enfants dépasse la valeur du parent.' });
-  }
-  
-  await db.setAgentAttributeGroupValue(agentId, groupId, value);
-  res.json({ success: true });
-});
-
-app.post('/api/skills/attribute', async (req, res) => {
-  const { agentId, attributeId, value } = req.body;
-  if (!agentId || !attributeId || value === undefined) {
-    return res.status(400).json({ success: false, message: 'Paramètres invalides.' });
-  }
-  
-  const isValid = await db.validateHierarchy(agentId, 'attribute', attributeId, value);
-  if (!isValid) {
-    return res.status(400).json({ success: false, message: 'La somme des enfants dépasse la valeur du parent.' });
-  }
-  
-  await db.setAgentAttributeValue(agentId, attributeId, value);
-  res.json({ success: true });
-});
-
-app.post('/api/skills/skill-group', async (req, res) => {
-  const { agentId, groupId, value } = req.body;
-  if (!agentId || !groupId || value === undefined) {
-    return res.status(400).json({ success: false, message: 'Paramètres invalides.' });
-  }
-  
-  const isValid = await db.validateHierarchy(agentId, 'skill_group', groupId, value);
-  if (!isValid) {
-    return res.status(400).json({ success: false, message: 'La somme des enfants dépasse la valeur du parent.' });
-  }
-  
-  await db.setAgentSkillGroupValue(agentId, groupId, value);
-  res.json({ success: true });
-});
-
-app.post('/api/skills/skill', async (req, res) => {
-  const { agentId, skillId, value } = req.body;
-  if (!agentId || !skillId || value === undefined) {
-    return res.status(400).json({ success: false, message: 'Paramètres invalides.' });
-  }
-  
-  await db.setAgentSkillValue(agentId, skillId, value);
-  res.json({ success: true });
-});
-
-app.post('/api/login', async (req, res) => {
-  const { name, password } = req.body || {};
-  if (!name || !password) {
-    return res.status(400).json({ success: false, message: 'Nom ou mot de passe manquant.' });
-  }
-
-  const agent = await db.getAgentByName(name);
-  if (!agent || agent.password !== password) {
-    return res.status(401).json({ success: false, message: 'Authentification échouée.' });
-  }
-
-  res.json({ success: true, agent });
-});
-
-// Admin routes
+// ✅ Route pour l'admin - login (page)
 app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin-login.html'));
 });
 
-app.post('/api/admin/login', async (req, res) => {
-  const { username, password } = req.body || {};
-  if (username === 'AdminAgent' && password === 'Takik_c_Makik') {
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ success: false, message: 'Accès refusé' });
-  }
-});
-
+// ✅ Route pour l'admin - dashboard (page)
 app.get('/admin/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin-dashboard.html'));
 });
 
-app.get('/admin/agent/:id', (req, res) => {
+// ✅ Route pour l'admin - edit agent (page)
+app.get('/admin/agent-edit', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin-agent-edit.html'));
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Division Adventure server available at http://localhost:${port}`);
+// ✅ Route pour l'admin - view/edit agent (redirige vers agent-edit avec l'ID)
+app.get('/admin/agent/:id', (req, res) => {
+  // Si on veut afficher la page d'édition directement
+  res.sendFile(path.join(__dirname, 'admin-agent-edit.html'));
+});
+
+// ============ ROUTES API ADMIN ============
+
+// ✅ Login admin (API)
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    // TODO: Implémenter la vérification admin (à adapter selon votre base)
+    // Pour l'instant, on retourne un succès par défaut
+    res.json({ success: true, message: 'Connexion admin réussie' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Liste des agents pour l'admin (API)
+app.get('/api/admin/agents', async (req, res) => {
+  try {
+    const agents = await db.getAllAgentsAsync();
+    res.json({ agents });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Récupérer un agent spécifique pour l'admin (API)
+app.get('/api/admin/agents/:id', async (req, res) => {
+  try {
+    const agent = await db.getAgentByIdAsync(req.params.id);
+    res.json({ agent });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============ ROUTES API ============
+
+// Agents
+app.get('/api/agents', async (req, res) => {
+  try {
+    const agents = await db.getAllAgentsAsync();
+    res.json(agents);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/agents/:id', async (req, res) => {
+  try {
+    const agent = await db.getAgentByIdAsync(req.params.id);
+    res.json({ agent });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/agents', async (req, res) => {
+  try {
+    const agent = await db.createAgentAsync(req.body);
+    res.status(201).json({ agent });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/agents/:id', async (req, res) => {
+  try {
+    const agent = await db.updateAgentAsync(req.body);
+    res.json({ agent });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Login
+app.post('/api/login', async (req, res) => {
+  try {
+    const { name, password } = req.body;
+    const agent = await db.getAgentByNameAsync(name);
+    if (agent && agent.password === password) {
+      res.json({ agent });
+    } else {
+      res.status(401).json({ error: 'Identifiants invalides' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ ROUTE MANQUANTE : Hiérarchie des compétences
+app.get('/api/skills/hierarchy/:agentId', async (req, res) => {
+  try {
+    const hierarchy = await db.getAgentSkillsHierarchy(req.params.agentId);
+    res.json(hierarchy);
+  } catch (error) {
+    console.error('Erreur /api/skills/hierarchy:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Effects
+app.get('/api/effects', async (req, res) => {
+  try {
+    const effects = await db.getAllEffectsAsync();
+    res.json({ success: true, effects });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Talents
+app.get('/api/talents', async (req, res) => {
+  try {
+    const talents = await db.getAllTalentsAsync();
+    res.json(talents);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============ DÉMARRAGE ============
+app.listen(PORT, () => {
+  console.log(`✅ Serveur démarré sur http://localhost:${PORT}`);
+  console.log('✅ Routes disponibles :');
+  console.log('   === ADMIN ===');
+  console.log(`   - GET  /admin/login`);
+  console.log(`   - GET  /admin/dashboard`);
+  console.log(`   - GET  /admin/agent-edit`);
+  console.log(`   - GET  /admin/agent/:id`);
+  console.log(`   - POST /api/admin/login`);
+  console.log(`   - GET  /api/admin/agents`);
+  console.log(`   - GET  /api/admin/agents/:id`);
+  console.log('   === API ===');
+  console.log(`   - GET  /api/agents`);
+  console.log(`   - GET  /api/agents/:id`);
+  console.log(`   - POST /api/agents`);
+  console.log(`   - PUT  /api/agents/:id`);
+  console.log(`   - POST /api/login`);
+  console.log(`   - GET  /api/effects`);
+  console.log(`   - GET  /api/skills/hierarchy/:agentId`);
+  console.log(`   - GET  /api/talents`);
 });

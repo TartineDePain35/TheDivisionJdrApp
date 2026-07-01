@@ -111,10 +111,10 @@
   <script>
     async function loadAgents() {
       try {
-        const response = await fetch('/api/agents');
+        const response = await fetch('/api/admin/agents');
         const data = await response.json();
         
-        if (data.success && data.agents && data.agents.length > 0) {
+        if (data.agents && data.agents.length > 0) {
           const tbody = document.getElementById('agentsTableBody');
           tbody.innerHTML = '';
           

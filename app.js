@@ -1063,39 +1063,107 @@ async function loadCompetencesData() {
     const data = await response.json();
     // ✅ Gérer les 2 formats (tableau direct ou objet {hierarchy: [...]})
     competencesHierarchy = Array.isArray(data) ? data : (data.hierarchy || []);
+    
+    // ✅ Si l'API retourne une hiérarchie vide, essayer de construire une hiérarchie par défaut
+    if (competencesHierarchy.length === 0 && currentAgent?.attributes) {
+      console.log('⚠️ Hiérarchie vide, construction d\'une hiérarchie par défaut depuis currentAgent.attributes');
+      competencesHierarchy = [{
+        id: 1,
+        name: 'Attributs',
+        description: 'Groupes d\'attributs principaux',
+        value: 0,
+        attributes: Object.entries(currentAgent.attributes).map(([name, value]) => ({
+          id: normalizeAttributeName(name),
+          name: name,
+          description: `Attribut ${name}`,
+          value: Number(value) || 1,
+          skillGroups: []
+        }))
+      }];
+    }
+
+    // ✅ Normalisation des IDs en strings (évite les [object Object])
+    const normalizeId = (id) => {
+      if (typeof id === 'string' || typeof id === 'number') return String(id);
+      if (id && typeof id === 'object') return String(id.id || id._id || JSON.stringify(id));
+      return 'unknown';
+    };
 
     // ✅ Reconstruire competencesState avec les IDs comme clés
     competencesState = {};
     for (const group of competencesHierarchy) {
-      const groupKey = group.id;
-      competencesState[groupKey] = { ...group, value: group.value || 0 };
+      const groupKey = normalizeId(group.id);
+      competencesState[groupKey] = { ...group, id: groupKey, value: group.value || 0 };
 
       for (const attribute of group.attributes || []) {
-        const attrKey = attribute.id;
-        competencesState[groupKey][attrKey] = { ...attribute, value: attribute.value || 0 };
+        const attrKey = normalizeId(attribute.id);
+        competencesState[groupKey][attrKey] = { ...attribute, id: attrKey, value: attribute.value || 0 };
 
         for (const skillGroup of attribute.skillGroups || []) {
-          const sgKey = skillGroup.id;
-          competencesState[groupKey][attrKey][sgKey] = { ...skillGroup, value: skillGroup.value || 0 };
+          const sgKey = normalizeId(skillGroup.id);
+          competencesState[groupKey][attrKey][sgKey] = { ...skillGroup, id: sgKey, value: skillGroup.value || 0 };
 
           for (const skill of skillGroup.skills || []) {
-            const skillKey = skill.id;
-            competencesState[groupKey][attrKey][sgKey][skillKey] = { ...skill, value: skill.value || 0 };
+            const skillKey = normalizeId(skill.id);
+            competencesState[groupKey][attrKey][sgKey][skillKey] = { ...skill, id: skillKey, value: skill.value || 0 };
+          }
+        }
+      }
+    }
+
+    // ✅ FORCER les valeurs des attributs depuis currentAgent.attributes
+    // (Solution de secours au cas où la synchronisation backend échoue)
+    if (currentAgent?.attributes) {
+      // Parcourir tous les groupes
+      for (const groupKey of Object.keys(competencesState)) {
+        const group = competencesState[groupKey];
+        if (group && typeof group === 'object') {
+          // Parcourir tous les attributs de ce groupe
+          for (const attrKey of Object.keys(group)) {
+            const attr = group[attrKey];
+            if (attr && attr.name && !['name', 'description', 'id', 'value', 'attributes'].includes(attrKey)) {
+              // Trouver la valeur correspondante dans currentAgent.attributes
+              const normalizedAttrName = normalizeAttributeName(attr.name);
+              for (const [agentAttrName, agentAttrValue] of Object.entries(currentAgent.attributes)) {
+                if (normalizeAttributeName(agentAttrName) === normalizedAttrName) {
+                  // Mettre à jour la valeur dans competencesState
+                  group[attrKey].value = Number(agentAttrValue) || attr.value || 0;
+                  // Mettre aussi à jour dans competencesHierarchy
+                  const hierarchyGroup = competencesHierarchy.find(g => normalizeId(g.id) === groupKey);
+                  if (hierarchyGroup) {
+                    const hierarchyAttr = hierarchyGroup.attributes?.find(a => normalizeId(a.id) === attrKey);
+                    if (hierarchyAttr) {
+                      hierarchyAttr.value = Number(agentAttrValue) || hierarchyAttr.value || 0;
+                    }
+                  }
+                  break;
+                }
+              }
+            }
           }
         }
       }
     }
   } catch (error) {
     console.error('Error loading competences:', error);
-    // ✅ Initialisation par défaut en cas d'erreur
     competencesHierarchy = [];
     competencesState = {};
-    throw error; // Permet à openCompetencesScreen de gérer l'erreur
+    throw error;
   }
 }
 
 function normalizeKey(name) {
   return name.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e');
+}
+
+// ✅ Fonction de normalisation des noms d'attributs (pour matching avec le backend)
+function normalizeAttributeName(name) {
+  if (!name) return '';
+  return String(name).toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e')
+    .replace(/à/gi, 'a').replace(/â/gi, 'a')
+    .replace(/ç/gi, 'c');
 }
 
 function showCompetenceDescription(description) {
@@ -1118,31 +1186,46 @@ function renderCompetencesScreen() {
   }
 
   competencesContainer.innerHTML = '';
-  const attrKeys = Object.keys(competencesState).filter(k => !['name', 'description', 'id', 'value'].includes(k));
+  
+  // ✅ Parcourir les GROUPES d'attributs (niveau 0 : Attributs, etc.)
+  const groupKeys = Object.keys(competencesState).filter(k => !['name', 'description', 'id', 'value'].includes(k));
 
-  attrKeys.forEach(attrKey => {
-    const attr = competencesState[attrKey];
-    const attrValue = attr.value || 0;
-    const attrDiv = document.createElement('div');
-    attrDiv.className = 'competence-level';
-    attrDiv.dataset.level = '1';
-    attrDiv.dataset.key = attrKey;
-    attrDiv.innerHTML = `
+  groupKeys.forEach(groupKey => {
+    const group = competencesState[groupKey];
+    let groupValue = group.value || 0;
+    
+    // ✅ Fallback sur currentAgent.attributes si la valeur est 0
+    if (groupValue === 0 && group.name && currentAgent?.attributes) {
+      const normalizedGroupName = normalizeAttributeName(group.name);
+      for (const [attrName, attrValue] of Object.entries(currentAgent.attributes)) {
+        if (normalizeAttributeName(attrName) === normalizedGroupName) {
+          groupValue = Number(attrValue) || 0;
+          break;
+        }
+      }
+    }
+    
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'competence-level';
+    groupDiv.dataset.level = '0';
+    groupDiv.dataset.key = groupKey;
+    groupDiv.innerHTML = `
       <div class="competence-header">
-        <span class="competence-name">${attr.name || 'Inconnu'}</span>
-        <span class="competence-value">Niveau: ${attrValue}</span>
-        ${attr.description ? '<button class="info-icon" title="Info">?</button>' : ''}
+        <span class="competence-name">${group.name || 'Inconnu'}</span>
+        <span class="competence-value">Niveau: ${groupValue}</span>
+        ${group.description ? '<button class="info-icon" title="Info">?</button>' : ''}
       </div>
     `;
-    const infoBtn = attrDiv.querySelector('.info-icon');
+    const infoBtn = groupDiv.querySelector('.info-icon');
     if (infoBtn) {
       infoBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        showCompetenceDescription(attr.description);
+        showCompetenceDescription(group.description);
       });
     }
-    attrDiv.addEventListener('click', () => renderCompetencesLevel(1, attrKey));
-    competencesContainer.appendChild(attrDiv);
+    // ✅ Passer au niveau 1 (attributs du groupe)
+    groupDiv.addEventListener('click', () => renderCompetencesLevel(1, groupKey));
+    competencesContainer.appendChild(groupDiv);
   });
 }
 
@@ -1178,7 +1261,19 @@ function renderCompetencesLevel(level, key, parentKeys = []) {
     const subAttrKeys = Object.keys(current).filter(k => !['name', 'description', 'id', 'value', 'attributes'].includes(k));
     subAttrKeys.forEach(subAttrKey => {
       const subAttr = current[subAttrKey];
-      const subAttrValue = subAttr.value || 0;
+      
+      // ✅ Récupérer la valeur depuis subAttr, avec fallback sur currentAgent.attributes
+      let subAttrValue = subAttr.value || 0;
+      if (currentAgent?.attributes && subAttr.name) {
+        const normalizedAttrName = normalizeAttributeName(subAttr.name);
+        for (const [attrName, attrValue] of Object.entries(currentAgent.attributes)) {
+          if (normalizeAttributeName(attrName) === normalizedAttrName) {
+            subAttrValue = Number(attrValue) || subAttrValue;
+            break;
+          }
+        }
+      }
+      
       const subAttrDiv = document.createElement('div');
       subAttrDiv.className = 'competence-level';
       subAttrDiv.dataset.level = '2';
@@ -1396,27 +1491,28 @@ async function saveAttributesAllocation() {
 
 async function saveCompetencesAllocation() {
   if (!currentAgent?.id) return;
+  const safeId = (id) => typeof id === 'string' || typeof id === 'number' ? id : String(id?.id || id?. _id || 'unknown');
   
   try {
     // Save all values via API
     for (const group of competencesHierarchy) {
-      await fetch('/api/skills/attribute-group', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentId: currentAgent.id,
-          groupId: group.id,
-          value: group.value || 0
-        })
-      });
+    await fetch('/api/skills/attribute-group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentId: safeId(currentAgent.id),
+        groupId: safeId(group.id),
+        value: group.value || 0
+      })
+    });
       
       for (const attribute of group.attributes || []) {
         await fetch('/api/skills/attribute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            agentId: currentAgent.id,
-            attributeId: attribute.id,
+            agentId: safeId(currentAgent.id),
+            attributeId: safeId(attribute.id),
             value: attribute.value || 0
           })
         });
@@ -1426,8 +1522,8 @@ async function saveCompetencesAllocation() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              agentId: currentAgent.id,
-              groupId: skillGroup.id,
+              agentId: safeId(currentAgent.id),
+              groupId: safeId(skillGroup.id),
               value: skillGroup.value || 0
             })
           });
@@ -1437,8 +1533,8 @@ async function saveCompetencesAllocation() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                agentId: currentAgent.id,
-                skillId: skill.id,
+                agentId: safeId(currentAgent.id),
+                skillId: safeId(skill.id),
                 value: skill.value || 0
               })
             });
@@ -2126,4 +2222,7 @@ logoutBtn.addEventListener('click', async () => {
 });
 
 
-loadCurrentAgent();
+loadCurrentAgent().catch(error => {
+  console.error('Erreur lors du chargement de l\'agent :', error);
+  showSection('landing');
+});

@@ -227,14 +227,14 @@
     async function loadAgent() {
       try {
         const [agentRes, effectsRes] = await Promise.all([
-          fetch(`/api/agents/${agentId}`),
+          fetch(`/api/admin/agents/${agentId}`),
           fetch('/api/effects')
         ]);
 
         const agentData = await agentRes.json();
         const effectsData = await effectsRes.json();
 
-        if (!agentData.success || !agentData.agent) {
+        if (!agentData.agent) {
           document.getElementById('loading').textContent = 'Agent non trouvé';
           return;
         }
@@ -310,14 +310,14 @@
       updatedAgent.assignedEffects = Array.from(agentEffects);
 
       try {
-        const response = await fetch(`/api/agents/${agentId}`, {
+        const response = await fetch(`/api/admin/agents/${agentId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedAgent)
         });
 
         const data = await response.json();
-        if (data.success) {
+        if (data.agent) {
           showToast('Agent mis à jour avec succès !');
         } else {
           showToast('Erreur lors de la mise à jour : ' + (data.message || 'Inconnu'));
