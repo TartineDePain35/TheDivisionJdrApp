@@ -30,15 +30,42 @@ function parseJsonValue(value) {
 }
 
 function serializeJsonValue(value) {
-  return JSON.stringify(value || []);
+  try {
+    return JSON.stringify(value || []);
+  } catch (e) {
+    // Si la valeur ne peut pas être sérialisée, retourner une chaîne vide ou null
+    console.warn('Impossible de sérialiser la valeur:', value);
+    return JSON.stringify(null);
+  }
 }
 
 function run(sql, params = []) {
-  const stmt = db.prepare(sql);
-  const result = stmt.run(params);
-  stmt.free();
-  saveDatabase();
-  return result;
+  try {
+    // ✅ S'assurer que tous les paramètres sont des types primitifs ou null
+    const safeParams = params.map(param => {
+      if (param === null || param === undefined) return null;
+      if (typeof param === 'string' || typeof param === 'number' || typeof param === 'boolean') return param;
+      try {
+        // Essayer de sérialiser les objets
+        return JSON.stringify(param);
+      } catch (e) {
+        console.error('Paramètre non-sérialisable:', param);
+        return null;
+      }
+    });
+    
+    const stmt = db.prepare(sql);
+    stmt.bind(safeParams);
+    const result = stmt.run();
+    stmt.free();
+    saveDatabase();
+    return result;
+  } catch (error) {
+    console.error('Erreur dans run():', error);
+    console.error('Requête SQL:', sql);
+    console.error('Paramètres:', params);
+    throw error;
+  }
 }
 
 function get(sql, params = []) {
@@ -80,10 +107,7 @@ function mapAgentRow(row) {
     familyStatus: row.familyStatus,
     children: row.children,
     story: row.story,
-    talent: row.talent ? parseJsonValue(row.talent) : null,
-    talentId: row.talentId,
-    stats: parseJsonValue(row.stats),
-    attributes: parseJsonValue(row.attributes),
+    // ✅ NOUVEAU : Ne plus utiliser row.talent ou row.talentId, charger depuis agent_talents_value
     password: row.password,
     availableStatsPoints: row.availableStatsPoints,
     availableAttributesPoints: row.availableAttributesPoints,
@@ -125,14 +149,14 @@ function getAgentEffects(agentId) {
   return all(
     `SELECT e.id, e.type, e.name, e.description, e.duration
      FROM effects e
-     JOIN agent_effects ae ON ae.effectId = e.id
+     JOIN agent_effects_value ae ON ae.effectId = e.id
      WHERE ae.agentId = ?`,
     [agentId]
   );
 }
 
 function clearAgentEffects(agentId) {
-  run('DELETE FROM agent_effects WHERE agentId = ?', [agentId]);
+  run('DELETE FROM agent_effects_value WHERE agentId = ?', [agentId]);
 }
 
 function assignEffectsToAgent(agentId, effectIds) {
@@ -141,11 +165,12 @@ function assignEffectsToAgent(agentId, effectIds) {
   }
 
   const stmt = db.prepare(
-    'INSERT OR IGNORE INTO agent_effects (agentId, effectId) VALUES (?, ?)'
+    'INSERT OR IGNORE INTO agent_effects_value (agentId, effectId) VALUES (?, ?)'
   );
 
   for (const effectId of effectIds) {
-    stmt.run([agentId, effectId]);
+    stmt.bind([agentId, effectId]);
+    stmt.run();
   }
 
   stmt.free();
@@ -158,9 +183,12 @@ function getAgentById(id) {
   const agent = mapAgentRow(row);
   agent.inventory = getInventory(id);
   agent.assignedEffects = getAgentEffects(id);
-  if (row.talentId) {
-    agent.talent = getTalentById(row.talentId);
-  }
+  // ✅ NOUVEAU : Charger les attributs depuis agent_skill_attribute_groups_values
+  agent.attributes = getAgentAttributes(id);
+  // ✅ NOUVEAU : Charger les stats depuis agent_stats_group_value
+  agent.stats = getAgentStats(id);
+  // ✅ NOUVEAU : Charger les talents depuis agent_talents_value
+  agent.talents = getAgentTalents(id);
   return agent;
 }
 
@@ -173,15 +201,56 @@ function getAllTalents() {
   return all('SELECT * FROM talents').map(mapTalentRow);
 }
 
+// ✅ NOUVEAU : Fonctions pour gérer les talents d'un agent via agent_talents_value
+function getAgentTalents(agentId) {
+  return all('SELECT t.id, t.title, t.description FROM talents t JOIN agent_talents_value tv ON tv.talent_id = t.id WHERE tv.agent_id = ?', [agentId]);
+}
+
+function hasAgentTalent(agentId, talentId) {
+  const row = get('SELECT id FROM agent_talents_value WHERE agent_id = ? AND talent_id = ?', [agentId, talentId]);
+  return row !== null;
+}
+
+function addAgentTalent(agentId, talentId) {
+  const existing = get('SELECT id FROM agent_talents_value WHERE agent_id = ? AND talent_id = ?', [agentId, talentId]);
+  if (!existing) {
+    run('INSERT INTO agent_talents_value (agent_id, talent_id) VALUES (?, ?)', [agentId, talentId]);
+  }
+}
+
+function removeAgentTalent(agentId, talentId) {
+  run('DELETE FROM agent_talents_value WHERE agent_id = ? AND talent_id = ?', [agentId, talentId]);
+}
+
+function setAgentTalents(agentId, talentIds) {
+  // Supprimer tous les talents existants pour cet agent
+  run('DELETE FROM agent_talents_value WHERE agent_id = ?', [agentId]);
+  
+  // Ajouter les nouveaux talents
+  if (Array.isArray(talentIds)) {
+    const insertStmt = db.prepare('INSERT INTO agent_talents_value (agent_id, talent_id) VALUES (?, ?)');
+    for (const talentId of talentIds) {
+      // Ignorer les valeurs null, undefined ou non numériques
+      if (talentId == null || typeof talentId !== 'number') continue;
+      insertStmt.bind([agentId, talentId]);
+      insertStmt.run();
+    }
+    insertStmt.free();
+  }
+}
+
 function getAgentByName(name) {
   const row = get('SELECT * FROM agents WHERE lower(name) = lower(?)', [name]);
   if (!row) return null;
   const agent = mapAgentRow(row);
   agent.inventory = getInventory(row.id);
   agent.assignedEffects = getAgentEffects(row.id);
-  if (row.talentId) {
-    agent.talent = getTalentById(row.talentId);
-  }
+  // ✅ NOUVEAU : Charger les attributs depuis agent_skill_attribute_groups_values
+  agent.attributes = getAgentAttributes(row.id);
+  // ✅ NOUVEAU : Charger les stats depuis agent_stats_group_value
+  agent.stats = getAgentStats(row.id);
+  // ✅ NOUVEAU : Charger les talents depuis agent_talents_value
+  agent.talents = getAgentTalents(row.id);
   return agent;
 }
 
@@ -203,12 +272,13 @@ function loadEffectsFromJson() {
       'INSERT INTO effects (type, name, description, duration) VALUES (?, ?, ?, ?)'
     );
     for (const effect of Array.isArray(effects) ? effects : []) {
-      insertStmt.run([
+      insertStmt.bind([
         effect.type || '',
         effect.name || '',
         effect.description || '',
         effect.duration || '',
       ]);
+      insertStmt.run();
     }
     insertStmt.free();
     saveDatabase();
@@ -226,9 +296,9 @@ function ensureFirstAgentHasDefaultEffect() {
   if (!effectRow) {
     return;
   }
-  const assigned = get('SELECT id FROM agent_effects WHERE agentId = ? AND effectId = ?', [agentRow.id, effectRow.id]);
+  const assigned = get('SELECT id FROM agent_effects_value WHERE agentId = ? AND effectId = ?', [agentRow.id, effectRow.id]);
   if (!assigned) {
-    run('INSERT INTO agent_effects (agentId, effectId) VALUES (?, ?)', [agentRow.id, effectRow.id]);
+    run('INSERT INTO agent_effects_value (agentId, effectId) VALUES (?, ?)', [agentRow.id, effectRow.id]);
   }
 }
 
@@ -250,10 +320,11 @@ function loadTalentsFromJson() {
       'INSERT INTO talents (title, description) VALUES (?, ?)'
     );
     for (const talent of Array.isArray(talents) ? talents : []) {
-      insertStmt.run([
+      insertStmt.bind([
         talent.title || '',
         talent.description || '',
       ]);
+      insertStmt.run();
     }
     insertStmt.free();
     saveDatabase();
@@ -285,7 +356,8 @@ function insertDefaultTalents() {
     'INSERT INTO talents (title, description) VALUES (?, ?)'
   );
   for (const talent of defaultTalents) {
-    insertStmt.run([talent.title, talent.description]);
+    insertStmt.bind([talent.title, talent.description]);
+    insertStmt.run();
   }
   insertStmt.free();
   saveDatabase();
@@ -296,6 +368,10 @@ function getAllAgents() {
     const agent = mapAgentRow(row);
     agent.inventory = getInventory(row.id);
     agent.assignedEffects = getAgentEffects(row.id);
+    // ✅ Charger les attributs, stats et talents
+    agent.attributes = getAgentAttributes(row.id);
+    agent.stats = getAgentStats(row.id);
+    agent.talents = getAgentTalents(row.id);
     return agent;
   });
 }
@@ -306,7 +382,7 @@ function insertInventory(agentId, inventoryItems) {
   );
 
   for (const item of inventoryItems || []) {
-    insertStmt.run([
+    insertStmt.bind([
       agentId,
       item.name || '',
       item.category || '',
@@ -315,6 +391,7 @@ function insertInventory(agentId, inventoryItems) {
       item.class || null,
       item.quantity || 1,
     ]);
+    insertStmt.run();
   }
 
   insertStmt.free();
@@ -333,10 +410,7 @@ function createAgent(agent) {
     'familyStatus',
     'children',
     'story',
-    'talent',
-    'talentId',
-    'stats',
-    'attributes',
+    // ✅ NOUVEAU : Suppression des champs talent et talentId
     'password',
     'availableStatsPoints',
     'availableAttributesPoints',
@@ -361,10 +435,7 @@ function createAgent(agent) {
     agent.familyStatus,
     agent.children,
     agent.story,
-    serializeJsonValue(agent.talent),
-    agent.talentId || null,
-    serializeJsonValue(agent.stats),
-    serializeJsonValue(agent.attributes),
+    // ✅ NOUVEAU : Suppression de talentId
     agent.password,
     agent.availableStatsPoints ?? 0,
     agent.availableAttributesPoints ?? 0,
@@ -377,16 +448,67 @@ function createAgent(agent) {
   ];
 
   const stmt = db.prepare(insertSql);
-  stmt.run(params);
+  stmt.bind(params);
+  stmt.run();
   stmt.free();
-  saveDatabase();
-
+  
   const agentId = lastInsertId();
+  
+  // Vérification critique : agentId doit être un nombre valide
+  if (typeof agentId !== 'number' || isNaN(agentId)) {
+    console.error('Erreur: agentId est invalide après insertion:', agentId);
+    throw new Error('Impossible de récupérer l\'ID de l\'agent créé');
+  }
+  
+  saveDatabase();
   insertInventory(agentId, agent.inventory || []);
   if (Array.isArray(agent.assignedEffects)) {
     assignEffectsToAgent(agentId, agent.assignedEffects);
   }
   initializeAgentSkills(agentId);
+  
+  // ✅ NOUVEAU : Sauvegarder les attributs dans agent_skill_attribute_groups_values
+  // Approche alignée sur les stats : traitement individuel de chaque groupe d'attributs
+  if (agent.attributes) {
+    const groups = all('SELECT id, name FROM skill_attribute_groups');
+    for (const group of groups) {
+      const normalizedName = group.name.toLowerCase()
+        .replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e')
+        .replace(/[^a-z0-9]/g, '');
+      const value = agent.attributes[normalizedName];
+      if (value !== undefined) {
+        setAgentAttributeGroupValue(agentId, group.id, value);
+      }
+    }
+  }
+
+  // ✅ NOUVEAU : Sauvegarder les stats dans agent_stats_group_value
+  if (agent.stats) {
+    const statsGroups = all('SELECT id, name FROM stats_group');
+    for (const group of statsGroups) {
+      const normalizedName = group.name.toLowerCase()
+        .replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e')
+        .replace(/[^a-z0-9]/g, '');
+      const value = agent.stats[normalizedName];
+      if (value !== undefined) {
+        setAgentStatsGroupValue(agentId, group.id, value);
+      }
+    }
+  }
+
+  // Approche alignée sur agent_stats_group_value : traitement individuel de chaque talent
+  if (agent.talents && Array.isArray(agent.talents)) {
+    for (const talent of agent.talents) {
+      if (talent && talent.id !== undefined && talent.id !== null) {
+        const talentId = Number(talent.id);
+        const dbTalent = get('SELECT id FROM talents WHERE id = ?', [talentId]);
+        if (dbTalent) {
+          addAgentTalent(agentId, dbTalent.id);
+        }
+      }
+    }
+  }
+  
   return getAgentById(agentId);
 }
 
@@ -400,10 +522,6 @@ function updateAgent(agent) {
     familyStatus = ?,
     children = ?,
     story = ?,
-    talent = ?,
-    talentId = ?,
-    stats = ?,
-    attributes = ?,
     password = ?,
     availableStatsPoints = ?,
     availableAttributesPoints = ?,
@@ -425,10 +543,7 @@ function updateAgent(agent) {
     agent.familyStatus,
     agent.children,
     agent.story,
-    serializeJsonValue(agent.talent),
-    agent.talentId || null,
-    serializeJsonValue(agent.stats),
-    serializeJsonValue(agent.attributes),
+    // ✅ NOUVEAU : Suppression de talentId
     agent.password,
     agent.availableStatsPoints ?? 0,
     agent.availableAttributesPoints ?? 0,
@@ -440,6 +555,53 @@ function updateAgent(agent) {
     agent.xp ?? 0,
     agent.id,
   ]);
+  
+  // ✅ NOUVEAU : Mettre à jour les attributs dans agent_skill_attribute_groups_values
+  // Approche alignée sur les stats : traitement individuel de chaque groupe d'attributs
+  if (agent.id && agent.attributes) {
+    const groups = all('SELECT id, name FROM skill_attribute_groups');
+    for (const group of groups) {
+      const normalizedName = group.name.toLowerCase()
+        .replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e')
+        .replace(/[^a-z0-9]/g, '');
+      const value = agent.attributes[normalizedName];
+      if (value !== undefined) {
+        setAgentAttributeGroupValue(agent.id, group.id, value);
+      }
+    }
+  }
+
+  // ✅ NOUVEAU : Mettre à jour les stats dans agent_stats_group_value
+  if (agent.id && agent.stats) {
+    const statsGroups = all('SELECT id, name FROM stats_group');
+    for (const group of statsGroups) {
+      const normalizedName = group.name.toLowerCase()
+        .replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e')
+        .replace(/[^a-z0-9]/g, '');
+      const value = agent.stats[normalizedName];
+      if (value !== undefined) {
+        setAgentStatsGroupValue(agent.id, group.id, value);
+      }
+    }
+  }
+
+  // ✅ NOUVEAU : Mettre à jour les talents dans agent_talents_value
+  // Approche alignée sur agent_stats_group_value : traitement individuel de chaque talent
+  if (agent.id && agent.talents && Array.isArray(agent.talents)) {
+    // D'abord supprimer tous les talents existants pour cet agent
+    run('DELETE FROM agent_talents_value WHERE agent_id = ?', [agent.id]);
+    
+    // Puis ajouter chaque talent valide
+    for (const talent of agent.talents) {
+      if (talent && talent.id !== undefined && talent.id !== null) {
+        const talentId = Number(talent.id);
+        const dbTalent = get('SELECT id FROM talents WHERE id = ?', [talentId]);
+        if (dbTalent) {
+          addAgentTalent(agent.id, dbTalent.id);
+        }
+      }
+    }
+  }
 
   run('DELETE FROM inventory WHERE agentId = ?', [agent.id]);
   insertInventory(agent.id, agent.inventory || []);
@@ -474,10 +636,6 @@ async function initializeDatabase() {
       familyStatus TEXT,
       children INTEGER,
       story TEXT,
-      talent TEXT,
-      talentId INTEGER,
-      stats TEXT,
-      attributes TEXT,
       password TEXT,
       availableStatsPoints INTEGER,
       availableAttributesPoints INTEGER,
@@ -488,16 +646,102 @@ async function initializeDatabase() {
       inventoryCapacity INTEGER,
       xp INTEGER DEFAULT 0,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(talentId) REFERENCES talents(id)
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Migration: Supprimer le champ attributes s'il existe
+  try {
+    const columns = db.exec('PRAGMA table_info(agents)');
+    const hasAttributesColumn = columns[0].values.some(col => col[1] === 'attributes');
+    if (hasAttributesColumn) {
+      db.run('ALTER TABLE agents DROP COLUMN attributes');
+    }
+  } catch (e) {
+    console.warn('Impossible de vérifier/supprimer la colonne attributes:', e.message);
+  }
+
+  // Migration: Supprimer le champ stats s'il existe
+  try {
+    const columns = db.exec('PRAGMA table_info(agents)');
+    const hasStatsColumn = columns[0].values.some(col => col[1] === 'stats');
+    if (hasStatsColumn) {
+      db.run('ALTER TABLE agents DROP COLUMN stats');
+    }
+  } catch (e) {
+    console.warn('Impossible de vérifier/supprimer la colonne stats:', e.message);
+  }
+
+  // Migration: Supprimer le champ talent s'il existe
+  try {
+    const columns = db.exec('PRAGMA table_info(agents)');
+    const hasTalentColumn = columns[0].values.some(col => col[1] === 'talent');
+    if (hasTalentColumn) {
+      db.run('ALTER TABLE agents DROP COLUMN talent');
+    }
+  } catch (e) {
+    console.warn('Impossible de vérifier/supprimer la colonne talent:', e.message);
+  }
+
+  // Migration: Supprimer le champ talentId s'il existe
+  try {
+    const columns = db.exec('PRAGMA table_info(agents)');
+    const hasTalentIdColumn = columns[0].values.some(col => col[1] === 'talentId');
+    if (hasTalentIdColumn) {
+      db.run('ALTER TABLE agents DROP COLUMN talentId');
+    }
+  } catch (e) {
+    console.warn('Impossible de vérifier/supprimer la colonne talentId:', e.message);
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS talents (
       id INTEGER PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT NOT NULL
+    );
+  `);
+
+  // Migration: Corriger le type de la colonne id de talents (doit être INTEGER, pas TEXT)
+  try {
+    const columns = db.exec('PRAGMA table_info(talents)');
+    if (columns && columns.length > 0 && columns[0].values && columns[0].values.length > 0) {
+      const idColumn = columns[0].values.find(col => col[1] === 'id');
+      if (idColumn && idColumn[2] !== 'INTEGER') {
+        // Sauvegarder les données existantes
+        const existingTalents = all('SELECT id, title, description FROM talents');
+        db.run('DROP TABLE talents');
+        db.run(`
+          CREATE TABLE IF NOT EXISTS talents (
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL
+          );
+        `);
+        // Réinsérer les données avec conversion de l'id en INTEGER
+        if (existingTalents.length > 0) {
+          const insertStmt = db.prepare('INSERT INTO talents (id, title, description) VALUES (?, ?, ?)');
+          for (const talent of existingTalents) {
+            insertStmt.bind([Number(talent.id), talent.title, talent.description]);
+            insertStmt.run();
+          }
+          insertStmt.free();
+        }
+        saveDatabase();
+      }
+    }
+  } catch (e) {
+    console.warn('Impossible de migrer la colonne id de talents:', e.message);
+  }
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS agent_talents_value (
+      id INTEGER PRIMARY KEY,
+      agent_id INTEGER NOT NULL,
+      talent_id INTEGER NOT NULL,
+      FOREIGN KEY(agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+      FOREIGN KEY(talent_id) REFERENCES talents(id) ON DELETE CASCADE,
+      UNIQUE(agent_id, talent_id)
     );
   `);
   db.run(`
@@ -525,7 +769,7 @@ async function initializeDatabase() {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS agent_effects (
+    CREATE TABLE IF NOT EXISTS agent_effects_value (
       id INTEGER PRIMARY KEY,
       agentId INTEGER NOT NULL,
       effectId INTEGER NOT NULL,
@@ -576,7 +820,7 @@ async function initializeDatabase() {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS agent_attribute_group_values (
+    CREATE TABLE IF NOT EXISTS agent_skill_attribute_groups_values (
       id INTEGER PRIMARY KEY,
       agent_id INTEGER NOT NULL,
       group_id INTEGER NOT NULL,
@@ -588,7 +832,7 @@ async function initializeDatabase() {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS agent_attribute_values (
+    CREATE TABLE IF NOT EXISTS agent_attributes_values (
       id INTEGER PRIMARY KEY,
       agent_id INTEGER NOT NULL,
       attribute_id INTEGER NOT NULL,
@@ -600,7 +844,7 @@ async function initializeDatabase() {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS agent_skill_group_values (
+    CREATE TABLE IF NOT EXISTS agent_skill_groups_values (
       id INTEGER PRIMARY KEY,
       agent_id INTEGER NOT NULL,
       group_id INTEGER NOT NULL,
@@ -612,7 +856,7 @@ async function initializeDatabase() {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS agent_skill_values (
+    CREATE TABLE IF NOT EXISTS agent_skills_values (
       id INTEGER PRIMARY KEY,
       agent_id INTEGER NOT NULL,
       skill_id INTEGER NOT NULL,
@@ -623,13 +867,94 @@ async function initializeDatabase() {
     );
   `);
 
+  // ============ STATS DATABASE SCHEMA ============
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS stats_group (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE
+    );
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS agent_stats_group_value (
+      id INTEGER PRIMARY KEY,
+      agent_id INTEGER NOT NULL,
+      group_id INTEGER NOT NULL,
+      value INTEGER DEFAULT 0,
+      FOREIGN KEY(agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+      FOREIGN KEY(group_id) REFERENCES stats_group(id),
+      UNIQUE(agent_id, group_id)
+    );
+  `);
+
+  // Insérer les entrées par défaut pour stats_group
+  try {
+    const rows = all('SELECT id FROM stats_group LIMIT 1');
+    if (rows.length === 0) {
+      const insertStmt = db.prepare('INSERT INTO stats_group (id, name) VALUES (?, ?)');
+      insertStmt.bind([1, 'Speed']);
+      insertStmt.run();
+      insertStmt.bind([2, 'Resilience']);
+      insertStmt.run();
+      insertStmt.bind([3, 'Vigor']);
+      insertStmt.run();
+      insertStmt.free();
+      saveDatabase();
+    }
+  } catch (error) {
+    console.error('Impossible d\'insérer les stats_group par défaut:', error);
+  }
+
   loadEffectsFromJson();
   loadTalentsFromJson();
   loadSkillsFromJson();
+
+  // Migration: Uniformiser les noms des groupes d'attributs pour correspondre aux clés du frontend
+  // "Déxterité" ou "Dextérité" → "Dexterity" pour que la normalisation donne "dexterity"
+  try {
+    // Trouver le groupe avec n'importe quelle variante de "dexterité" (avec ou sans accents)
+    const dexteriteGroups = all(`SELECT id, name FROM skill_attribute_groups WHERE LOWER(name) LIKE '%dexterit%' OR LOWER(name) LIKE '%déxterit%'`);
+    for (const group of dexteriteGroups) {
+      run('UPDATE skill_attribute_groups SET name = ? WHERE id = ?', ['Dexterity', group.id]);
+    }
+    saveDatabase();
+  } catch (e) {
+    console.warn('Impossible de migrer les noms des groupes d\'attributs:', e.message);
+  }
+
   insertDefaultTalents();
   ensureFirstAgentHasDefaultEffect();
   
   saveDatabase();
+}
+
+// Fonction de migration indépendante pour corriger les noms des groupes d'attributs
+// Doit être appelée explicitement après que la base soit prête
+async function migrateAttributeGroupNames() {
+  try {
+    await ready; // Attendre que la base soit initialisée
+    console.log('Début de la migration des groupes d\'attributs');
+    // Chercher toutes les variantes possibles de "Dexterity" (avec ou sans accents, différentes orthographes)
+    const dexteriteGroups = all(`
+      SELECT id, name FROM skill_attribute_groups 
+      WHERE LOWER(name) IN ('dexterity', 'dexterite', 'dexterité', 'déxterité')
+    `);
+    console.log('Migration des groupes d\'attributs - groupes trouvés:', dexteriteGroups);
+    if (dexteriteGroups.length === 0) {
+      console.log('Aucun groupe à migrer trouvé. Vérification de tous les groupes:');
+      const allGroups = all('SELECT id, name FROM skill_attribute_groups');
+      console.log('Tous les groupes:', allGroups);
+    }
+    for (const group of dexteriteGroups) {
+      console.log(`Migration: renommage du groupe "${group.name}" (ID: ${group.id}) en "Dexterity"`);
+      run('UPDATE skill_attribute_groups SET name = ? WHERE id = ?', ['Dexterity', group.id]);
+    }
+    saveDatabase();
+    console.log('Migration des groupes d\'attributs terminée');
+  } catch (e) {
+    console.warn('Impossible de migrer les noms des groupes d\'attributs:', e.message);
+  }
 }
 
 const ready = initializeDatabase();
@@ -699,28 +1024,32 @@ function loadSkillsFromJson() {
     for (const group of skillsData) {
       // Insert attribute group
       const groupStmt = db.prepare('INSERT INTO skill_attribute_groups (name, description) VALUES (?, ?)');
-      groupStmt.run([group['attribute-group'], '']);
+      groupStmt.bind([group['attribute-group'], '']);
+      groupStmt.run();
       const groupId = lastInsertId();
       groupStmt.free();
       
       for (const attribute of group.attributes) {
         // Insert attribute
         const attrStmt = db.prepare('INSERT INTO skill_attributes (group_id, name, description) VALUES (?, ?, ?)');
-        attrStmt.run([groupId, attribute.name, attribute.description || '']);
+        attrStmt.bind([groupId, attribute.name, attribute.description || '']);
+        attrStmt.run();
         const attrId = lastInsertId();
         attrStmt.free();
         
         for (const skillGroup of attribute['skills-groupe'] || []) {
           // Insert skill group
           const groupStmt2 = db.prepare('INSERT INTO skill_groups (attribute_id, name, description) VALUES (?, ?, ?)');
-          groupStmt2.run([attrId, skillGroup['groupe-name'], '']);
+          groupStmt2.bind([attrId, skillGroup['groupe-name'], '']);
+          groupStmt2.run();
           const groupId2 = lastInsertId();
           groupStmt2.free();
           
           for (const skill of skillGroup.skills) {
             // Insert skill
             const skillStmt = db.prepare('INSERT INTO skills (group_id, name, description) VALUES (?, ?, ?)');
-            skillStmt.run([groupId2, skill.name, skill.description || '']);
+            skillStmt.bind([groupId2, skill.name, skill.description || '']);
+            skillStmt.run();
             skillStmt.free();
           }
         }
@@ -751,58 +1080,72 @@ function getSkillsByGroup(groupId) {
 }
 
 function getAgentAttributeGroupValue(agentId, groupId) {
-  const row = get('SELECT value FROM agent_attribute_group_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
+  const row = get('SELECT value FROM agent_skill_attribute_groups_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
   return row ? row.value : 0;
 }
 
+// ✅ NOUVEAU : Charger tous les attributs d'un agent sous forme d'objet {conscience: X, dexterity: Y, technique: Z}
+function getAgentAttributes(agentId) {
+  const groups = all('SELECT sg.id, sg.name, aagv.value FROM skill_attribute_groups sg LEFT JOIN agent_skill_attribute_groups_values aagv ON aagv.agent_id = ? AND aagv.group_id = sg.id', [agentId]);
+  
+  const result = {};
+  for (const group of groups) {
+    const normalizedName = group.name.toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e');
+    result[normalizedName] = group.value || 0;
+  }
+  return result;
+}
+
 function setAgentAttributeGroupValue(agentId, groupId, value) {
-  const existing = get('SELECT id FROM agent_attribute_group_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
+  const existing = get('SELECT id FROM agent_skill_attribute_groups_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
   if (existing) {
-    run('UPDATE agent_attribute_group_values SET value = ? WHERE agent_id = ? AND group_id = ?', [value, agentId, groupId]);
+    run('UPDATE agent_skill_attribute_groups_values SET value = ? WHERE agent_id = ? AND group_id = ?', [value, agentId, groupId]);
   } else {
-    run('INSERT INTO agent_attribute_group_values (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, value]);
+    run('INSERT INTO agent_skill_attribute_groups_values (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, value]);
   }
 }
 
 function getAgentAttributeValue(agentId, attributeId) {
-  const row = get('SELECT value FROM agent_attribute_values WHERE agent_id = ? AND attribute_id = ?', [agentId, attributeId]);
+  const row = get('SELECT value FROM agent_attributes_values WHERE agent_id = ? AND attribute_id = ?', [agentId, attributeId]);
   return row ? row.value : 0;
 }
 
 function setAgentAttributeValue(agentId, attributeId, value) {
-  const existing = get('SELECT id FROM agent_attribute_values WHERE agent_id = ? AND attribute_id = ?', [agentId, attributeId]);
+  const existing = get('SELECT id FROM agent_attributes_values WHERE agent_id = ? AND attribute_id = ?', [agentId, attributeId]);
   if (existing) {
-    run('UPDATE agent_attribute_values SET value = ? WHERE agent_id = ? AND attribute_id = ?', [value, agentId, attributeId]);
+    run('UPDATE agent_attributes_values SET value = ? WHERE agent_id = ? AND attribute_id = ?', [value, agentId, attributeId]);
   } else {
-    run('INSERT INTO agent_attribute_values (agent_id, attribute_id, value) VALUES (?, ?, ?)', [agentId, attributeId, value]);
+    run('INSERT INTO agent_attributes_values (agent_id, attribute_id, value) VALUES (?, ?, ?)', [agentId, attributeId, value]);
   }
 }
 
 function getAgentSkillGroupValue(agentId, groupId) {
-  const row = get('SELECT value FROM agent_skill_group_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
+  const row = get('SELECT value FROM agent_skill_groups_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
   return row ? row.value : 0;
 }
 
 function setAgentSkillGroupValue(agentId, groupId, value) {
-  const existing = get('SELECT id FROM agent_skill_group_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
+  const existing = get('SELECT id FROM agent_skill_groups_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
   if (existing) {
-    run('UPDATE agent_skill_group_values SET value = ? WHERE agent_id = ? AND group_id = ?', [value, agentId, groupId]);
+    run('UPDATE agent_skill_groups_values SET value = ? WHERE agent_id = ? AND group_id = ?', [value, agentId, groupId]);
   } else {
-    run('INSERT INTO agent_skill_group_values (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, value]);
+    run('INSERT INTO agent_skill_groups_values (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, value]);
   }
 }
 
 function getAgentSkillValue(agentId, skillId) {
-  const row = get('SELECT value FROM agent_skill_values WHERE agent_id = ? AND skill_id = ?', [agentId, skillId]);
+  const row = get('SELECT value FROM agent_skills_values WHERE agent_id = ? AND skill_id = ?', [agentId, skillId]);
   return row ? row.value : 0;
 }
 
 function setAgentSkillValue(agentId, skillId, value) {
-  const existing = get('SELECT id FROM agent_skill_values WHERE agent_id = ? AND skill_id = ?', [agentId, skillId]);
+  const existing = get('SELECT id FROM agent_skills_values WHERE agent_id = ? AND skill_id = ?', [agentId, skillId]);
   if (existing) {
-    run('UPDATE agent_skill_values SET value = ? WHERE agent_id = ? AND skill_id = ?', [value, agentId, skillId]);
+    run('UPDATE agent_skills_values SET value = ? WHERE agent_id = ? AND skill_id = ?', [value, agentId, skillId]);
   } else {
-    run('INSERT INTO agent_skill_values (agent_id, skill_id, value) VALUES (?, ?, ?)', [agentId, skillId, value]);
+    run('INSERT INTO agent_skills_values (agent_id, skill_id, value) VALUES (?, ?, ?)', [agentId, skillId, value]);
   }
 }
 
@@ -836,21 +1179,21 @@ function getChildrenValueSum(agentId, childrenTable, childrenIds) {
 function getAttributeGroupValueSum(agentId, groupId) {
   const attributeIds = getAttributeGroupChildren(groupId);
   if (attributeIds.length === 0) return 0;
-  return getChildrenValueSum(agentId, 'agent_attribute_values', attributeIds);
+  return getChildrenValueSum(agentId, 'agent_attributes_values', attributeIds);
 }
 
 // Get sum of skill group values for an attribute
 function getAttributeValueSum(agentId, attributeId) {
   const groupIds = getAttributeChildren(attributeId);
   if (groupIds.length === 0) return 0;
-  return getChildrenValueSum(agentId, 'agent_skill_group_values', groupIds);
+  return getChildrenValueSum(agentId, 'agent_skill_groups_values', groupIds);
 }
 
 // Get sum of skill values for a skill group
 function getSkillGroupValueSum(agentId, groupId) {
   const skillIds = getSkillGroupChildren(groupId);
   if (skillIds.length === 0) return 0;
-  return getChildrenValueSum(agentId, 'agent_skill_values', skillIds);
+  return getChildrenValueSum(agentId, 'agent_skills_values', skillIds);
 }
 
 // Validate hierarchy: children sum must be <= parent value
@@ -860,15 +1203,15 @@ function validateHierarchy(agentId, entityType, entityId, newValue) {
   
   switch (entityType) {
     case 'attribute_group':
-      childrenTable = 'agent_attribute_values';
+      childrenTable = 'agent_attributes_values';
       childrenQuery = 'SELECT id FROM skill_attributes WHERE group_id = ?';
       break;
     case 'attribute':
-      childrenTable = 'agent_skill_group_values';
+      childrenTable = 'agent_skill_groups_values';
       childrenQuery = 'SELECT id FROM skill_groups WHERE attribute_id = ?';
       break;
     case 'skill_group':
-      childrenTable = 'agent_skill_values';
+      childrenTable = 'agent_skills_values';
       childrenQuery = 'SELECT id FROM skills WHERE group_id = ?';
       break;
     default:
@@ -905,6 +1248,50 @@ function initializeAgentSkills(agentId) {
       }
     }
   }
+  
+  // Initialize default stats values for a new agent
+  initializeAgentStats(agentId);
+}
+
+// Initialize default stats values for a new agent
+function initializeAgentStats(agentId) {
+  const statsGroups = all('SELECT id FROM stats_group');
+  for (const group of statsGroups) {
+    setAgentStatsGroupValue(agentId, group.id, 0);
+  }
+}
+
+// Stats helper functions
+function getStatsGroups() {
+  return all('SELECT id, name FROM stats_group ORDER BY id');
+}
+
+function getAgentStatsGroupValue(agentId, groupId) {
+  const row = get('SELECT value FROM agent_stats_group_value WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
+  return row ? row.value : 0;
+}
+
+function setAgentStatsGroupValue(agentId, groupId, value) {
+  const existing = get('SELECT id FROM agent_stats_group_value WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
+  if (existing) {
+    run('UPDATE agent_stats_group_value SET value = ? WHERE agent_id = ? AND group_id = ?', [value, agentId, groupId]);
+  } else {
+    run('INSERT INTO agent_stats_group_value (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, value]);
+  }
+}
+
+// ✅ NOUVEAU : Charger toutes les stats d'un agent sous forme d'objet
+function getAgentStats(agentId) {
+  const groups = all('SELECT sg.id, sg.name, sgv.value FROM stats_group sg LEFT JOIN agent_stats_group_value sgv ON sgv.agent_id = ? AND sgv.group_id = sg.id', [agentId]);
+  
+  const result = {};
+  for (const group of groups) {
+    const normalizedName = group.name.toLowerCase()
+      .replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e')
+      .replace(/[^a-z0-9]/g, '');
+    result[normalizedName] = group.value || 0;
+  }
+  return result;
 }
 
 // Get full skills hierarchy for an agent
@@ -972,6 +1359,52 @@ async function validateHierarchyAsync(agentId, entityType, entityId, newValue) {
   return validateHierarchy(agentId, entityType, entityId, newValue);
 }
 
+async function setAgentStatsGroupValueAsync(agentId, groupId, value) {
+  await ensureReady();
+  setAgentStatsGroupValue(agentId, groupId, value);
+}
+
+async function getStatsGroupsAsync() {
+  await ensureReady();
+  return getStatsGroups();
+}
+
+async function getAgentStatsGroupValueAsync(agentId, groupId) {
+  await ensureReady();
+  return getAgentStatsGroupValue(agentId, groupId);
+}
+
+async function getAgentStatsAsync(agentId) {
+  await ensureReady();
+  return getAgentStats(agentId);
+}
+
+// Async versions for talents
+async function getAgentTalentsAsync(agentId) {
+  await ensureReady();
+  return getAgentTalents(agentId);
+}
+
+async function hasAgentTalentAsync(agentId, talentId) {
+  await ensureReady();
+  return hasAgentTalent(agentId, talentId);
+}
+
+async function addAgentTalentAsync(agentId, talentId) {
+  await ensureReady();
+  addAgentTalent(agentId, talentId);
+}
+
+async function removeAgentTalentAsync(agentId, talentId) {
+  await ensureReady();
+  removeAgentTalent(agentId, talentId);
+}
+
+async function setAgentTalentsAsync(agentId, talentIds) {
+  await ensureReady();
+  setAgentTalents(agentId, talentIds);
+}
+
 
 module.exports = {
   getAllAgents: getAllAgentsAsync,
@@ -987,6 +1420,7 @@ module.exports = {
   setAgentSkillGroupValue: setAgentSkillGroupValueAsync,
   setAgentSkillValue: setAgentSkillValueAsync,
   validateHierarchy: validateHierarchyAsync,
+  ensureReady,
   initializeAgentSkills,
   getSkillAttributeGroups,
   getSkillAttributesByGroup,
@@ -999,4 +1433,18 @@ module.exports = {
   getAttributeGroupValueSum,
   getAttributeValueSum,
   getSkillGroupValueSum,
+  getStatsGroups: getStatsGroupsAsync,
+  getAgentStatsGroupValue: getAgentStatsGroupValueAsync,
+  setAgentStatsGroupValue: setAgentStatsGroupValueAsync,
+  getAgentStats: getAgentStatsAsync,
+  initializeAgentStats,
+  // Talents
+  getAgentTalents: getAgentTalentsAsync,
+  hasAgentTalent: hasAgentTalentAsync,
+  addAgentTalent: addAgentTalentAsync,
+  removeAgentTalent: removeAgentTalentAsync,
+  setAgentTalents: setAgentTalentsAsync,
 };
+
+// Exécuter la migration des noms des groupes d'attributs au démarrage
+migrateAttributeGroupNames().catch(e => console.warn('Migration des groupes d\'attributs échouée:', e.message));

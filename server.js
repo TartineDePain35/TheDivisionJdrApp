@@ -36,38 +36,83 @@ app.get('/api/talents', async (req, res) => {
 });
 
 app.post('/api/agents', async (req, res) => {
-  const agent = req.body;
-  if (!agent || !agent.name || !agent.firstName || !agent.password) {
-    return res.status(400).json({ success: false, message: 'Informations agent manquantes.' });
-  }
+  try {
+    const agent = req.body;
+    
+    // Validation des types des champs requis
+    if (!agent || typeof agent !== 'object') {
+      return res.status(400).json({ success: false, message: 'Données agent invalides.' });
+    }
+    
+    if (typeof agent.name !== 'string' || typeof agent.firstName !== 'string' || typeof agent.password !== 'string') {
+      return res.status(400).json({ success: false, message: 'Nom, prénom et mot de passe doivent être des chaînes de caractères.' });
+    }
+    
+    if (!agent.name || !agent.firstName || !agent.password) {
+      return res.status(400).json({ success: false, message: 'Informations agent manquantes.' });
+    }
 
-  const allAgents = await db.getAllAgents();
-  const exists = allAgents.some(
-    (item) => item.name.toLowerCase() === agent.name.toLowerCase() && item.firstName.toLowerCase() === agent.firstName.toLowerCase()
-  );
-  if (exists) {
-    return res.status(409).json({ success: false, message: 'Agent déjà existant.' });
-  }
+    const allAgents = await db.getAllAgents();
+    const exists = allAgents.some(
+      (item) => item.name.toLowerCase() === agent.name.toLowerCase() && item.firstName.toLowerCase() === agent.firstName.toLowerCase()
+    );
+    if (exists) {
+      return res.status(409).json({ success: false, message: 'Agent déjà existant.' });
+    }
 
-  const created = await db.createAgent(agent);
-  res.json({ success: true, agent: created });
+    const created = await db.createAgent(agent);
+    res.json({ success: true, agent: created });
+  } catch (error) {
+    console.error('Erreur lors de la création de l\'agent:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur lors de la création de l\'agent.' 
+    });
+  }
 });
 
 app.put('/api/agents/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  const agent = req.body;
-  if (!id || !agent) {
-    return res.status(400).json({ success: false, message: 'Agent invalide.' });
-  }
-  agent.id = id;
+  try {
+    const id = Number(req.params.id);
+    const agent = req.body;
+    
+    // Validation des paramètres
+    if (!id || typeof id !== 'number' || isNaN(id)) {
+      return res.status(400).json({ success: false, message: 'Identifiant agent invalide.' });
+    }
+    
+    if (!agent || typeof agent !== 'object') {
+      return res.status(400).json({ success: false, message: 'Données agent invalides.' });
+    }
+    
+    // Validation des champs requis
+    if (typeof agent.name !== 'string' || typeof agent.firstName !== 'string') {
+      return res.status(400).json({ success: false, message: 'Nom et prénom doivent être des chaînes de caractères.' });
+    }
+    
+    // S'assurer que les champs numériques sont bien des numbers
+    if (agent.age !== undefined && typeof agent.age !== 'number') agent.age = Number(agent.age) || null;
+    if (agent.inventoryCapacity !== undefined && typeof agent.inventoryCapacity !== 'number') agent.inventoryCapacity = Number(agent.inventoryCapacity) || 30;
+    if (agent.lifePercent !== undefined && typeof agent.lifePercent !== 'number') agent.lifePercent = Number(agent.lifePercent) || 100;
+    if (agent.availableStatsPoints !== undefined && typeof agent.availableStatsPoints !== 'number') agent.availableStatsPoints = Number(agent.availableStatsPoints) || 0;
+    if (agent.availableAttributesPoints !== undefined && typeof agent.availableAttributesPoints !== 'number') agent.availableAttributesPoints = Number(agent.availableAttributesPoints) || 0;
+    
+    agent.id = id;
 
-  const existing = await db.getAgentById(id);
-  if (!existing) {
-    return res.status(404).json({ success: false, message: 'Agent non trouvé.' });
-  }
+    const existing = await db.getAgentById(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Agent non trouvé.' });
+    }
 
-  const updated = await db.updateAgent(agent);
-  res.json({ success: true, agent: updated });
+    const updated = await db.updateAgent(agent);
+    res.json({ success: true, agent: updated });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de l\'agent:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur lors de la mise à jour de l\'agent.' 
+    });
+  }
 });
 
 // Skills endpoints
@@ -137,17 +182,34 @@ app.post('/api/skills/skill', async (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
-  const { name, password } = req.body || {};
-  if (!name || !password) {
-    return res.status(400).json({ success: false, message: 'Nom ou mot de passe manquant.' });
-  }
+  try {
+    const { name, password } = req.body || {};
+    
+    // Validation des types : s'assurer que name et password sont des strings
+    if (typeof name !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Nom et mot de passe doivent être des chaînes de caractères.' 
+      });
+    }
+    
+    if (!name || !password) {
+      return res.status(400).json({ success: false, message: 'Nom ou mot de passe manquant.' });
+    }
 
-  const agent = await db.getAgentByName(name);
-  if (!agent || agent.password !== password) {
-    return res.status(401).json({ success: false, message: 'Authentification échouée.' });
-  }
+    const agent = await db.getAgentByName(name);
+    if (!agent || agent.password !== password) {
+      return res.status(401).json({ success: false, message: 'Authentification échouée.' });
+    }
 
-  res.json({ success: true, agent });
+    res.json({ success: true, agent });
+  } catch (error) {
+    console.error('Erreur lors de la connexion:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur lors de la connexion.' 
+    });
+  }
 });
 
 // Admin routes
@@ -156,11 +218,28 @@ app.get('/admin/login', (req, res) => {
 });
 
 app.post('/api/admin/login', async (req, res) => {
-  const { username, password } = req.body || {};
-  if (username === 'AdminAgent' && password === 'Takik_c_Makik') {
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ success: false, message: 'Accès refusé' });
+  try {
+    const { username, password } = req.body || {};
+    
+    // Validation des types
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Nom d\'utilisateur et mot de passe doivent être des chaînes de caractères.' 
+      });
+    }
+    
+    if (username === 'AdminAgent' && password === 'Takik_c_Makik') {
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ success: false, message: 'Accès refusé' });
+    }
+  } catch (error) {
+    console.error('Erreur lors de la connexion admin:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
   }
 });
 
@@ -170,6 +249,15 @@ app.get('/admin/dashboard', (req, res) => {
 
 app.get('/admin/agent/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin-agent-edit.html'));
+});
+
+// Middleware global pour attraper les erreurs non gérées
+app.use((err, req, res, next) => {
+  console.error('Erreur non gérée:', err);
+  res.status(500).json({ 
+    success: false, 
+    message: 'Erreur interne du serveur.' 
+  });
 });
 
 const port = process.env.PORT || 3000;

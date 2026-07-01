@@ -251,9 +251,12 @@ function createDefaultAgent(data) {
     familyStatus: data.familyStatus,
     children: data.children,
     story: data.story,
-    talent: data.talent,
-    talentId: data.talentId,
-    stats: data.stats,
+    // ✅ NOUVEAU : talents est maintenant géré via talents_value
+    talents: (data.talents && Array.isArray(data.talents)) 
+      ? data.talents.map(t => ({...t, id: Number(t.id)})) // Forcer la conversion en number
+      : [],
+    // ✅ NOUVEAU : stats est maintenant géré via stats_group_value, garder pour compatibilité
+    stats: data.stats || { speed: 1, resilience: 1, vigor: 1 },
     attributes: data.attributes,
     password: data.password,
     availableStatsPoints: 0,
@@ -1035,12 +1038,14 @@ function updateAttributesButtons() {
     const decreaseBtn = document.querySelector(`#attributesView [data-attr="${attr}"][data-action="decrease"]`);
     
     if (increaseBtn) {
+      // ✅ Même mécanisme que pour les stats : désactiver le bouton "+" quand reserve = 0
       increaseBtn.disabled = attributesState.reserve <= 0;
     }
     
     if (decreaseBtn) {
-      const currentValue = attributesState.attributes[attr];
-      const baseValue = baseAttributes[attr] || 1;
+      const currentValue = Number(attributesState.attributes[attr]) || 0;
+      const baseValue = Number(baseAttributes[attr]) || 1;
+      // ✅ Même mécanisme que pour les stats : afficher "-" si valeur > base
       decreaseBtn.style.display = currentValue > baseValue ? 'inline-block' : 'none';
     }
   });
@@ -1068,7 +1073,11 @@ async function loadCompetencesData() {
     competencesState = {};
     for (const group of competencesHierarchy) {
       const groupKey = group.id;
-      competencesState[groupKey] = { ...group, value: group.value || 0 };
+      // ✅ Utiliser la valeur de l'agent pour les groupes principaux (Conscience, Dextérité, Technique)
+      // Normaliser le nom du groupe pour correspondre aux clés de currentAgent.attributes
+      const normalizedGroupName = normalizeKey(group.name);
+      const agentGroupValue = currentAgent.attributes?.[normalizedGroupName] || group.value || 0;
+      competencesState[groupKey] = { ...group, value: agentGroupValue };
 
       for (const attribute of group.attributes || []) {
         const attrKey = attribute.id;
@@ -1084,6 +1093,11 @@ async function loadCompetencesData() {
           }
         }
       }
+    }
+    
+    // ✅ Fusionner avec les compétences éventuellement sauvegardées dans currentAgent
+    if (currentAgent.skills) {
+      deepMergeCompetences(currentAgent.skills);
     }
   } catch (error) {
     console.error('Error loading competences:', error);
@@ -1343,28 +1357,52 @@ async function changeCompetenceValue(path, level, entityKey, action) {
 }
 
 function changeSkillStat(stat, action) {
+  // ✅ S'assurer que reserve est bien un number
+  if (typeof skillsState.reserve !== 'number' || isNaN(skillsState.reserve)) {
+    skillsState.reserve = Number(skillsState.reserve) || 0;
+  }
+  
   if (action === 'increase') {
     if (skillsState.reserve <= 0) return;
-    skillsState.stats[stat] += 1;
+    skillsState.stats[stat] = (skillsState.stats[stat] || 0) + 1;
     skillsState.reserve -= 1;
   } else if (action === 'decrease') {
     if (skillsState.stats[stat] <= (baseStats[stat] || 1)) return;
-    skillsState.stats[stat] -= 1;
+    skillsState.stats[stat] = Math.max(baseStats[stat] || 1, skillsState.stats[stat] - 1);
     skillsState.reserve += 1;
   }
+  
+  // ✅ NOUVEAU : Mettre à jour currentAgent immédiatement
+  if (currentAgent) {
+    currentAgent.stats = { ...currentAgent.stats, ...skillsState.stats };
+    currentAgent.availableStatsPoints = skillsState.reserve;
+  }
+  
   renderSkillsScreen();
 }
 
 function changeAttributeStat(attr, action) {
+  // ✅ S'assurer que reserve est bien un number
+  if (typeof attributesState.reserve !== 'number' || isNaN(attributesState.reserve)) {
+    attributesState.reserve = Number(attributesState.reserve) || 0;
+  }
+  
   if (action === 'increase') {
     if (attributesState.reserve <= 0) return;
-    attributesState.attributes[attr] += 1;
+    attributesState.attributes[attr] = (attributesState.attributes[attr] || 0) + 1;
     attributesState.reserve -= 1;
   } else if (action === 'decrease') {
     if (attributesState.attributes[attr] <= (baseAttributes[attr] || 1)) return;
-    attributesState.attributes[attr] -= 1;
+    attributesState.attributes[attr] = Math.max(baseAttributes[attr] || 1, attributesState.attributes[attr] - 1);
     attributesState.reserve += 1;
   }
+  
+  // ✅ NOUVEAU : Mettre à jour currentAgent immédiatement
+  if (currentAgent) {
+    currentAgent.attributes = { ...currentAgent.attributes, ...attributesState.attributes };
+    currentAgent.availableAttributesPoints = attributesState.reserve;
+  }
+  
   renderAttributesScreen();
 }
 
@@ -1602,12 +1640,28 @@ function updateAgentLocally(agent) {
 async function persistCurrentAgent() {
   if (!currentAgent || !currentAgent.id) return;
   try {
-    await requestJson(`/api/agents/${currentAgent.id}`, {
+    // Protégeons contre les objets non sérialisables
+    let agentData;
+    try {
+      agentData = JSON.parse(JSON.stringify(currentAgent));
+    } catch (e) {
+      console.error('Erreur de sérialisation de currentAgent:', e);
+      console.error('currentAgent:', currentAgent);
+      throw e;
+    }
+    
+    const response = await requestJson(`/api/agents/${currentAgent.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(currentAgent),
+      body: JSON.stringify(agentData),
     });
-  } catch {
+    
+    // Vérifier la réponse
+    if (!response || !response.success) {
+      console.error('Erreur lors de la persistence:', response?.message || 'Réponse invalide');
+    }
+  } catch (error) {
+    console.error('Erreur complète dans persistCurrentAgent:', error);
     updateAgentLocally(currentAgent);
   }
 }
@@ -1863,6 +1917,10 @@ async function loadTalents() {
   try {
     const result = await requestJson('/api/talents');
     talents = Array.isArray(result) ? result : (result?.talents || result?.data || []);
+    // S'assurer que talents est un tableau d'objets avec id
+    if (!Array.isArray(talents)) {
+      talents = [];
+    }
     talentIndex = 0;
     selectedTalent = null;
     talentIdSelected = null;
@@ -1892,8 +1950,10 @@ function navigateTalent(direction) {
 
 function chooseTalent() {
   if (!talents.length) return;
-  selectedTalent = talents[talentIndex];
-  talentIdSelected = selectedTalent.id;
+  const talent = talents[talentIndex];
+  if (!talent || talent.id === null || talent.id === undefined) return;
+  selectedTalent = talent;
+  talentIdSelected = Number(talent.id); // Forcer la conversion en number
   showWizardStep(6);
 }
 
@@ -1916,8 +1976,8 @@ function getWizardData() {
       dexterity: attributeValues.dexterity,
       technique: attributeValues.technique,
     },
-    talentId: talentIdSelected,
-    talent: selectedTalent,
+    // ✅ NOUVEAU : talentId supprimé, talents géré via talents_value
+    talents: selectedTalent ? [{...selectedTalent, id: Number(selectedTalent.id)}] : [],
     story: agentInputs.story.value.trim(),
     password: agentInputs.password.value,
   };
