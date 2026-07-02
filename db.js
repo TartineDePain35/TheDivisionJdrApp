@@ -832,7 +832,7 @@ async function initializeDatabase() {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS agent_attributes_values (
+    CREATE TABLE IF NOT EXISTS agent_skill_attributes_values (
       id INTEGER PRIMARY KEY,
       agent_id INTEGER NOT NULL,
       attribute_id INTEGER NOT NULL,
@@ -927,6 +927,30 @@ async function initializeDatabase() {
   ensureFirstAgentHasDefaultEffect();
   
   saveDatabase();
+}
+
+// Fonction de migration pour renommer la table agent_attributes_values en agent_skill_attributes_values
+async function migrateAgentAttributesValuesTable() {
+  try {
+    await ready; // Attendre que la base soit initialisée
+    console.log('Début de la migration de la table agent_attributes_values');
+    
+    // Vérifier si l'ancienne table existe
+    const oldTable = all("SELECT name FROM sqlite_master WHERE type='table' AND name='agent_attributes_values'");
+    if (oldTable.length > 0) {
+      console.log('Ancienne table agent_attributes_values trouvée, renommage en agent_skill_attributes_values');
+      
+      // Renommer la table
+      run('ALTER TABLE agent_attributes_values RENAME TO agent_skill_attributes_values');
+      
+      saveDatabase();
+      console.log('Migration de la table terminée avec succès');
+    } else {
+      console.log('Ancienne table agent_attributes_values non trouvée, migration non nécessaire');
+    }
+  } catch (e) {
+    console.warn('Impossible de migrer la table agent_attributes_values:', e.message);
+  }
 }
 
 // Fonction de migration indépendante pour corriger les noms des groupes d'attributs
@@ -1108,16 +1132,16 @@ function setAgentAttributeGroupValue(agentId, groupId, value) {
 }
 
 function getAgentAttributeValue(agentId, attributeId) {
-  const row = get('SELECT value FROM agent_attributes_values WHERE agent_id = ? AND attribute_id = ?', [agentId, attributeId]);
+  const row = get('SELECT value FROM agent_skill_attributes_values WHERE agent_id = ? AND attribute_id = ?', [agentId, attributeId]);
   return row ? row.value : 0;
 }
 
 function setAgentAttributeValue(agentId, attributeId, value) {
-  const existing = get('SELECT id FROM agent_attributes_values WHERE agent_id = ? AND attribute_id = ?', [agentId, attributeId]);
+  const existing = get('SELECT id FROM agent_skill_attributes_values WHERE agent_id = ? AND attribute_id = ?', [agentId, attributeId]);
   if (existing) {
-    run('UPDATE agent_attributes_values SET value = ? WHERE agent_id = ? AND attribute_id = ?', [value, agentId, attributeId]);
+    run('UPDATE agent_skill_attributes_values SET value = ? WHERE agent_id = ? AND attribute_id = ?', [value, agentId, attributeId]);
   } else {
-    run('INSERT INTO agent_attributes_values (agent_id, attribute_id, value) VALUES (?, ?, ?)', [agentId, attributeId, value]);
+    run('INSERT INTO agent_skill_attributes_values (agent_id, attribute_id, value) VALUES (?, ?, ?)', [agentId, attributeId, value]);
   }
 }
 
@@ -1168,8 +1192,19 @@ function getSkillGroupChildren(groupId) {
 function getChildrenValueSum(agentId, childrenTable, childrenIds) {
   if (childrenIds.length === 0) return 0;
   
+  // Determine the correct column name based on the table
+  let columnName = 'group_id';
+  if (childrenTable === 'agent_skill_attributes_values') {
+    columnName = 'attribute_id';
+  } else if (childrenTable === 'agent_skills_values') {
+    columnName = 'skill_id';
+  } else if (childrenTable === 'agent_stats_group_value') {
+    columnName = 'group_id';
+  }
+  // Default to group_id for agent_skill_groups_values and agent_skill_attribute_groups_values
+  
   const placeholders = childrenIds.map(() => '?').join(',');
-  const query = `SELECT COALESCE(SUM(value), 0) as total FROM ${childrenTable} WHERE agent_id = ? AND group_id IN (${placeholders})`;
+  const query = `SELECT COALESCE(SUM(value), 0) as total FROM ${childrenTable} WHERE agent_id = ? AND ${columnName} IN (${placeholders})`;
   const params = [agentId, ...childrenIds.map(id => id.id || id)];
   const row = get(query, params);
   return row ? row.total : 0;
@@ -1179,7 +1214,7 @@ function getChildrenValueSum(agentId, childrenTable, childrenIds) {
 function getAttributeGroupValueSum(agentId, groupId) {
   const attributeIds = getAttributeGroupChildren(groupId);
   if (attributeIds.length === 0) return 0;
-  return getChildrenValueSum(agentId, 'agent_attributes_values', attributeIds);
+  return getChildrenValueSum(agentId, 'agent_skill_attributes_values', attributeIds);
 }
 
 // Get sum of skill group values for an attribute
@@ -1203,13 +1238,14 @@ function validateHierarchy(agentId, entityType, entityId, newValue) {
   
   switch (entityType) {
     case 'attribute_group':
-      childrenTable = 'agent_attributes_values';
+      childrenTable = 'agent_skill_attributes_values';
       childrenQuery = 'SELECT id FROM skill_attributes WHERE group_id = ?';
       break;
     case 'attribute':
-      childrenTable = 'agent_skill_groups_values';
-      childrenQuery = 'SELECT id FROM skill_groups WHERE attribute_id = ?';
-      break;
+      // Pour les attributs, on ne valide pas la hiérarchie des enfants (skill_groups)
+      // car cette validation est déjà faite côté client dans handleAttributeValueChange
+      // et n'est pas nécessaire pour la feature de redistribution des points
+      return true;
     case 'skill_group':
       childrenTable = 'agent_skills_values';
       childrenQuery = 'SELECT id FROM skills WHERE group_id = ?';
@@ -1448,3 +1484,6 @@ module.exports = {
 
 // Exécuter la migration des noms des groupes d'attributs au démarrage
 migrateAttributeGroupNames().catch(e => console.warn('Migration des groupes d\'attributs échouée:', e.message));
+
+// Exécuter la migration du renommage de la table agent_attributes_values au démarrage
+migrateAgentAttributesValuesTable().catch(e => console.warn('Migration de la table agent_attributes_values échouée:', e.message));

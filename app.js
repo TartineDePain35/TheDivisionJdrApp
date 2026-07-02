@@ -139,6 +139,23 @@ let attributesState = {
 let baseStats = {};
 let baseAttributes = {};
 
+// État pour la redistribution des points au niveau des attributs (niveau 1)
+let currentAttributeGroup = null; // ID du groupe d'attributs sélectionné (ex: Conscience)
+let currentAttributeGroupValue = 0; // Valeur du groupe sélectionné
+let attributeModifications = {}; // {attributeId: newValue} pour les attributs modifiés
+let attributeBaseValues = {}; // {attributeId: baseValue} pour les valeurs de base des attributs
+let currentAvailablePoints = 0; // Stock de points disponibles pour le groupe sélectionné
+
+// Niveau 3 - Groupes de compétences
+let skillGroupModifications = {}; // {skillGroupId: newValue} pour les groupes de compétences modifiés
+let skillGroupBaseValues = {}; // {skillGroupId: baseValue} pour les valeurs de base des groupes de compétences
+let currentSkillGroupAvailablePoints = 0; // Stock de points disponibles pour l'attribut sélectionné
+
+// Niveau 4 - Compétences
+let skillModifications = {}; // {skillId: newValue} pour les compétences modifiées
+let skillBaseValues = {}; // {skillId: baseValue} pour les valeurs de base des compétences
+let currentSkillAvailablePoints = 0; // Stock de points disponibles pour le groupe de compétences sélectionné
+
 const EFFECT_ICONS = {
   blessure: '🩸',
   brulure: '🔥',
@@ -1131,6 +1148,13 @@ function renderCompetencesScreen() {
     return;
   }
 
+  // Réinitialiser l'état des attributs au niveau 0
+  currentAttributeGroup = null;
+  currentAttributeGroupValue = 0;
+  attributeModifications = {};
+  attributeBaseValues = {};
+  currentAvailablePoints = 0;
+
   competencesContainer.innerHTML = '';
   const attrKeys = Object.keys(competencesState).filter(k => !['name', 'description', 'id', 'value'].includes(k));
 
@@ -1158,6 +1182,417 @@ function renderCompetencesScreen() {
     attrDiv.addEventListener('click', () => renderCompetencesLevel(1, attrKey));
     competencesContainer.appendChild(attrDiv);
   });
+  
+  // Masquer le bouton Valider au niveau 0 (affiché uniquement au niveau 1)
+  if (saveCompetencesBtn) {
+    saveCompetencesBtn.style.display = 'none';
+  }
+}
+
+// Mettre à jour l'état du bouton Valider
+function updateSaveButtonState() {
+  if (!saveCompetencesBtn) return;
+  
+  // Activer le bouton s'il y a des modifications (niveau 2, 3 ou 4)
+  const hasAttributeModifications = attributeModifications && Object.keys(attributeModifications).length > 0;
+  const hasSkillGroupModifications = skillGroupModifications && Object.keys(skillGroupModifications).length > 0;
+  const hasSkillModifications = skillModifications && Object.keys(skillModifications).length > 0;
+  const hasModifications = hasAttributeModifications || hasSkillGroupModifications || hasSkillModifications;
+  saveCompetencesBtn.disabled = !hasModifications;
+}
+
+// Calculer le stock de points disponibles pour un groupe d'attributs
+// Stock = valeur du groupe - somme des valeurs des attributs enfants
+function calculateAvailablePointsForGroup(group) {
+  const groupValue = group.value || 0;
+  let sum = 0;
+  (group.attributes || []).forEach(attr => {
+    sum += (attr.value || 0);
+  });
+  return groupValue - sum;
+}
+
+// Calculer le stock de points disponibles en tenant compte des modifications en cours
+function calculateAvailablePointsForGroupWithModifications(group) {
+  const groupValue = group.value || 0;
+  let sum = 0;
+  (group.attributes || []).forEach(attr => {
+    const attrId = attr.id;
+    // Utiliser la valeur modifiée si elle existe, sinon la valeur de base
+    const currentValue = attributeModifications[attrId] !== undefined 
+      ? attributeModifications[attrId] 
+      : (attr.value || 0);
+    sum += currentValue;
+  });
+  return groupValue - sum;
+}
+
+// Sauvegarder les modifications des attributs pour un groupe
+async function saveAttributeValuesForGroup(groupId) {
+  if (!currentAgent?.id || !attributeModifications || Object.keys(attributeModifications).length === 0) {
+    showToast('Aucune modification à sauvegarder.');
+    return;
+  }
+  
+  try {
+    // Sauvegarder chaque attribut modifié
+    for (const [attributeId, value] of Object.entries(attributeModifications)) {
+      const response = await fetch('/api/skills/attribute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({
+          agentId: currentAgent.id,
+          attributeId: Number(attributeId),
+          value: Number(value)
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Erreur lors de la sauvegarde');
+      }
+    }
+    
+    showToast('Modifications sauvegardées avec succès!');
+    
+    // Réinitialiser les modifications et les valeurs de base
+    attributeModifications = {};
+    attributeBaseValues = {};
+    
+    // Mettre à jour l'état du bouton
+    updateSaveButtonState();
+    
+    // Recharger les données pour s'assurer que tout est synchronisé
+    await loadCompetencesData();
+    
+    // Forcer la réinitialisation des valeurs de base en réinitialisant currentAttributeGroup
+    const previousGroup = currentAttributeGroup;
+    currentAttributeGroup = null;
+    
+    renderCompetencesLevel(1, groupId, []);
+    
+    // Restaurer currentAttributeGroup après le render
+    currentAttributeGroup = previousGroup;
+    
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde:', error);
+    showToast('Erreur lors de la sauvegarde: ' + (error.message || 'Inconnu'));
+  }
+}
+
+// Mettre à jour la valeur d'un attribut et recalculer le stock
+function handleAttributeValueChange(attributeId, change, group) {
+  // Trouver l'attribut dans le groupe
+  const attribute = group.attributes.find(a => a.id === attributeId);
+  if (!attribute) return;
+  
+  // Calculer la nouvelle valeur à partir de la valeur ACTUELLE (base + modifications)
+  const currentValue = attributeModifications[attributeId] !== undefined
+    ? attributeModifications[attributeId]
+    : (attribute.value || 0);
+  let newValue = currentValue + change;
+  
+  // Ne pas descendre en dessous de 0
+  if (newValue < 0) newValue = 0;
+  
+  const groupValue = group.value || 0;
+  
+  // Calculer la somme totale avec la nouvelle valeur (en utilisant les valeurs de base + modifications)
+  let totalSum = 0;
+  group.attributes.forEach(attr => {
+    const attrId = attr.id;
+    const currentModification = attributeModifications[attrId];
+    const currentValue = currentModification !== undefined ? currentModification : (attr.value || 0);
+    
+    if (attrId === attributeId) {
+      totalSum += newValue;  // Utiliser la nouvelle valeur pour l'attribut modifié
+    } else {
+      totalSum += currentValue;  // Utiliser la valeur actuelle (base + modifications existantes)
+    }
+  });
+  
+  // Vérifier que la somme totale ne dépasse pas la valeur du groupe
+  if (totalSum > groupValue) {
+    // Ne pas permettre cette modification
+    return false;
+  }
+  
+  // Stocker la modification (sans modifier la hiérarchie)
+  attributeModifications[attributeId] = newValue;
+  
+  // Recalculer le stock disponible (en utilisant les valeurs de base + modifications)
+  currentAvailablePoints = calculateAvailablePointsForGroupWithModifications(group);
+  
+  // Mettre à jour l'état du bouton Valider
+  updateSaveButtonState();
+  
+  return true;
+}
+
+// Mettre à jour la valeur d'un groupe de compétences et recalculer le stock
+function handleSkillGroupValueChange(skillGroupId, change, parentAttribute, attributeId) {
+  // Trouver le groupe de compétences dans l'attribut parent
+  const skillGroup = parentAttribute.skillGroups.find(sg => sg.id === skillGroupId);
+  if (!skillGroup) return;
+  
+  // Calculer la nouvelle valeur à partir de la valeur ACTUELLE (base + modifications)
+  const currentValue = skillGroupModifications[skillGroupId] !== undefined
+    ? skillGroupModifications[skillGroupId]
+    : (skillGroup.value || 0);
+  let newValue = currentValue + change;
+  
+  // Ne pas descendre en dessous de 0
+  if (newValue < 0) newValue = 0;
+  
+  const attributeValue = parentAttribute.value || 0;
+  
+  // Calculer la somme totale avec la nouvelle valeur (en utilisant les valeurs de base + modifications)
+  let totalSum = 0;
+  parentAttribute.skillGroups.forEach(sg => {
+    const sgId = sg.id;
+    const currentModification = skillGroupModifications[sgId];
+    const currentSgValue = currentModification !== undefined ? currentModification : (sg.value || 0);
+    
+    if (sgId === skillGroupId) {
+      totalSum += newValue;  // Utiliser la nouvelle valeur pour le groupe modifié
+    } else {
+      totalSum += currentSgValue;  // Utiliser la valeur actuelle (base + modifications existantes)
+    }
+  });
+  
+  // Vérifier que la somme totale ne dépasse pas la valeur de l'attribut parent
+  if (totalSum > attributeValue) {
+    // Ne pas permettre cette modification
+    return false;
+  }
+  
+  // Stocker la modification (sans modifier la hiérarchie)
+  skillGroupModifications[skillGroupId] = newValue;
+  
+  // Recalculer le stock disponible
+  currentSkillGroupAvailablePoints = calculateAvailablePointsForSkillGroups(parentAttribute);
+  
+  // Mettre à jour l'affichage du stock
+  const reserveCountElement = document.getElementById('skillGroupReserveCount');
+  if (reserveCountElement) {
+    reserveCountElement.textContent = currentSkillGroupAvailablePoints;
+  }
+  
+  // Mettre à jour l'état du bouton Valider
+  updateSaveButtonState();
+  
+  return true;
+}
+
+// Calculer le stock de points disponibles pour les groupes de compétences
+function calculateAvailablePointsForSkillGroups(parentAttribute) {
+  const attributeValue = parentAttribute.value || 0;
+  let sum = 0;
+  (parentAttribute.skillGroups || []).forEach(sg => {
+    const sgId = sg.id;
+    const currentModification = skillGroupModifications[sgId];
+    sum += currentModification !== undefined ? currentModification : (sg.value || 0);
+  });
+  return attributeValue - sum;
+}
+
+// Sauvegarder les modifications des groupes de compétences pour un attribut
+async function saveSkillGroupValuesForAttribute(attributeId) {
+  if (!currentAgent?.id || !skillGroupModifications || Object.keys(skillGroupModifications).length === 0) {
+    showToast('Aucune modification à sauvegarder.');
+    return;
+  }
+  
+  try {
+    // Sauvegarder chaque groupe de compétences modifié
+    for (const [skillGroupId, value] of Object.entries(skillGroupModifications)) {
+      const response = await fetch('/api/skills/skill-group', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: currentAgent.id,
+          groupId: Number(skillGroupId),
+          value: Number(value)
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Erreur lors de la sauvegarde');
+      }
+    }
+    
+    showToast('Modifications sauvegardées avec succès!');
+    
+    // Réinitialiser les modifications et les valeurs de base
+    skillGroupModifications = {};
+    skillGroupBaseValues = {};
+    
+    // Mettre à jour l'état du bouton
+    updateSaveButtonState();
+    
+    // Recharger les données pour s'assurer que tout est synchronisé
+    await loadCompetencesData();
+    
+    // Forcer la réinitialisation des valeurs de base
+    const previousGroup = currentAttributeGroup;
+    currentAttributeGroup = null;
+    
+    // Trouver le groupe parent et l'attribut pour réafficher correctement
+    const parentGroupId = Object.keys(competencesState).find(key => 
+      competencesState[key].attributes?.some(attr => attr.id === attributeId)
+    );
+    if (parentGroupId) {
+      renderCompetencesLevel(2, attributeId, [Number(parentGroupId)]);
+    } else {
+      renderCompetencesLevel(2, attributeId, []);
+    }
+    
+    // Restaurer currentAttributeGroup après le render
+    currentAttributeGroup = previousGroup;
+    
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde:', error);
+    showToast('Erreur lors de la sauvegarde: ' + (error.message || 'Inconnu'));
+  }
+}
+
+// Mettre à jour la valeur d'une compétence et recalculer le stock
+function handleSkillValueChange(skillId, change, parentSkillGroup, skillGroupId) {
+  // Trouver la compétence dans le groupe de compétences parent
+  const skill = parentSkillGroup.skills.find(s => s.id === skillId);
+  if (!skill) return;
+  
+  // Calculer la nouvelle valeur à partir de la valeur ACTUELLE (base + modifications)
+  const currentValue = skillModifications[skillId] !== undefined
+    ? skillModifications[skillId]
+    : (skill.value || 0);
+  let newValue = currentValue + change;
+  
+  // Ne pas descendre en dessous de 0
+  if (newValue < 0) newValue = 0;
+  
+  const skillGroupValue = parentSkillGroup.value || 0;
+  
+  // Calculer la somme totale avec la nouvelle valeur (en utilisant les valeurs de base + modifications)
+  let totalSum = 0;
+  parentSkillGroup.skills.forEach(s => {
+    const sId = s.id;
+    const currentModification = skillModifications[sId];
+    const currentSValue = currentModification !== undefined ? currentModification : (s.value || 0);
+    
+    if (sId === skillId) {
+      totalSum += newValue;  // Utiliser la nouvelle valeur pour la compétence modifiée
+    } else {
+      totalSum += currentSValue;  // Utiliser la valeur actuelle (base + modifications existantes)
+    }
+  });
+  
+  // Vérifier que la somme totale ne dépasse pas la valeur du groupe de compétences parent
+  if (totalSum > skillGroupValue) {
+    // Ne pas permettre cette modification
+    return false;
+  }
+  
+  // Stocker la modification (sans modifier la hiérarchie)
+  skillModifications[skillId] = newValue;
+  
+  // Recalculer le stock disponible
+  currentSkillAvailablePoints = calculateAvailablePointsForSkills(parentSkillGroup);
+  
+  // Mettre à jour l'affichage du stock
+  const reserveCountElement = document.getElementById('skillReserveCount');
+  if (reserveCountElement) {
+    reserveCountElement.textContent = currentSkillAvailablePoints;
+  }
+  
+  // Mettre à jour l'état du bouton Valider
+  updateSaveButtonState();
+  
+  return true;
+}
+
+// Calculer le stock de points disponibles pour les compétences
+function calculateAvailablePointsForSkills(parentSkillGroup) {
+  const skillGroupValue = parentSkillGroup.value || 0;
+  let sum = 0;
+  (parentSkillGroup.skills || []).forEach(skill => {
+    const skillId = skill.id;
+    const currentModification = skillModifications[skillId];
+    sum += currentModification !== undefined ? currentModification : (skill.value || 0);
+  });
+  return skillGroupValue - sum;
+}
+
+// Sauvegarder les modifications des compétences pour un groupe de compétences
+async function saveSkillValuesForGroup(skillGroupId) {
+  if (!currentAgent?.id || !skillModifications || Object.keys(skillModifications).length === 0) {
+    showToast('Aucune modification à sauvegarder.');
+    return;
+  }
+  
+  try {
+    // Sauvegarder chaque compétence modifiée
+    for (const [skillId, value] of Object.entries(skillModifications)) {
+      const response = await fetch('/api/skills/skill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: currentAgent.id,
+          skillId: Number(skillId),
+          value: Number(value)
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Erreur lors de la sauvegarde');
+      }
+    }
+    
+    showToast('Modifications sauvegardées avec succès!');
+    
+    // Réinitialiser les modifications et les valeurs de base
+    skillModifications = {};
+    skillBaseValues = {};
+    
+    // Mettre à jour l'état du bouton
+    updateSaveButtonState();
+    
+    // Recharger les données pour s'assurer que tout est synchronisé
+    await loadCompetencesData();
+    
+    // Forcer la réinitialisation des valeurs de base
+    const previousGroup = currentAttributeGroup;
+    currentAttributeGroup = null;
+    
+    // Trouver le chemin complet pour réafficher correctement le niveau 3
+    let parentGroupId = null;
+    let parentAttributeId = null;
+    for (const group of competencesHierarchy) {
+      for (const attr of group.attributes || []) {
+        if (attr.skillGroups?.some(sg => sg.id === skillGroupId)) {
+          parentGroupId = group.id;
+          parentAttributeId = attr.id;
+          break;
+        }
+      }
+      if (parentGroupId) break;
+    }
+    
+    if (parentGroupId && parentAttributeId) {
+      renderCompetencesLevel(3, skillGroupId, [Number(parentGroupId), Number(parentAttributeId)]);
+    } else {
+      renderCompetencesLevel(3, skillGroupId, []);
+    }
+    
+    // Restaurer currentAttributeGroup après le render
+    currentAttributeGroup = previousGroup;
+    
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde:', error);
+    showToast('Erreur lors de la sauvegarde: ' + (error.message || 'Inconnu'));
+  }
 }
 
 function renderCompetencesLevel(level, key, parentKeys = []) {
@@ -1188,81 +1623,363 @@ function renderCompetencesLevel(level, key, parentKeys = []) {
   }
 
   if (level === 1) {
-    // Show sub-attributes - filter out system properties
-    const subAttrKeys = Object.keys(current).filter(k => !['name', 'description', 'id', 'value', 'attributes'].includes(k));
-    subAttrKeys.forEach(subAttrKey => {
-      const subAttr = current[subAttrKey];
-      const subAttrValue = subAttr.value || 0;
-      const subAttrDiv = document.createElement('div');
-      subAttrDiv.className = 'competence-level';
-      subAttrDiv.dataset.level = '2';
-      subAttrDiv.dataset.key = subAttrKey;
-      subAttrDiv.innerHTML = `
-        <div class="competence-header">
-          <span class="competence-name">${subAttr.name}</span>
-          <span class="competence-value">Niveau: ${subAttrValue}</span>
-          ${subAttr.description ? '<button class="info-icon" title="Info">?</button>' : ''}
-        </div>
-      `;
+    // NEW FEATURE: Niveau des attributs avec stock de points disponibles
+    // Trouver le groupe parent dans la hiérarchie
+    const groupId = Number(path[0]);
+    const group = competencesHierarchy.find(g => g.id === groupId);
+    
+    // Debug: si group est undefined, essayer de trouver pourquoi
+    if (!group) {
+      console.warn('Group not found for groupId:', groupId, 'in path:', path);
+      console.warn('Available groups:', competencesHierarchy.map(g => ({id: g.id, name: g.name})));
+      competencesContainer.innerHTML = '<div class="competence-empty">Groupe introuvable. Rechargez la page.</div>';
+      return;
+    }
+    
+    if (group) {
+      // Initialiser l'état pour ce groupe
+      currentAttributeGroup = groupId;
+      currentAttributeGroupValue = group.value || 0;
       
-      const infoBtn = subAttrDiv.querySelector('.info-icon');
-      if (infoBtn) {
-        infoBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          showCompetenceDescription(subAttr.description);
+      // Stocker les valeurs de base et réinitialiser les modifications UNIQUEMENT la première fois qu'on entre au niveau 1
+      // ou quand on change de groupe
+      if (Object.keys(attributeBaseValues).length === 0 || currentAttributeGroup !== groupId) {
+        attributeBaseValues = {};
+        attributeModifications = {};
+        (group.attributes || []).forEach(attr => {
+          attributeBaseValues[attr.id] = attr.value || 0;
         });
       }
       
-      subAttrDiv.addEventListener('click', () => renderCompetencesLevel(2, subAttrKey, path));
-      competencesContainer.appendChild(subAttrDiv);
-    });
+      // Recalculer le stock disponible (peut changer après une modification)
+      currentAvailablePoints = calculateAvailablePointsForGroupWithModifications(group);
+      
+      // Afficher le stock de points disponibles
+      const reserveDiv = document.createElement('div');
+      reserveDiv.className = 'reserve-box';
+      reserveDiv.innerHTML = `Points disponibles: <strong id="attributeReserveCount">${currentAvailablePoints}</strong>`;
+      competencesContainer.appendChild(reserveDiv);
+      
+      // Ajouter un conteneur pour les attributs
+      const attributesContainer = document.createElement('div');
+      attributesContainer.className = 'attributes-container';
+      
+      // Afficher chaque attribut avec boutons +/-
+      (group.attributes || []).forEach((subAttr, index) => {
+        // Utiliser la valeur modifiée si elle existe, sinon la valeur de base
+        const subAttrValue = attributeModifications[subAttr.id] !== undefined 
+          ? attributeModifications[subAttr.id] 
+          : (subAttr.value || 0);
+        
+        const subAttrDiv = document.createElement('div');
+        subAttrDiv.className = 'competence-level';
+        subAttrDiv.dataset.level = '2';
+        subAttrDiv.dataset.key = subAttr.id;
+        
+        // Règles pour les boutons :
+        // - Bouton "+" visible si stock de points > 0
+        // - Bouton "-" visible si le niveau ACTUEL > niveau de base (enregistré en base)
+        // - Bouton "-" N'EST PAS visible si : pas de modification OU niveau actuel = niveau de base
+        const baseValue = attributeBaseValues[subAttr.id] || 0;
+        const showIncrease = currentAvailablePoints > 0;
+        const showDecrease = subAttrValue > baseValue;
+        const showAnyControls = showIncrease || showDecrease;
+        
+        subAttrDiv.innerHTML = `
+          <div class="competence-header">
+            <span class="competence-name">${subAttr.name}</span>
+            <span class="competence-value">Niveau: ${subAttrValue}</span>
+            ${subAttr.description ? '<button class="info-icon" title="Info">?</button>' : ''}
+          </div>
+          ${showAnyControls ? `
+          <div class="competence-controls">
+            ${showDecrease ? '<button type="button" class="icon-btn" data-action="decrease" data-attribute-id="' + subAttr.id + '">-</button>' : ''}
+            <span>${subAttrValue}</span>
+            ${showIncrease ? '<button type="button" class="icon-btn" data-action="increase" data-attribute-id="' + subAttr.id + '">+</button>' : ''}
+          </div>
+          ` : ''}
+        `;
+        
+        const infoBtn = subAttrDiv.querySelector('.info-icon');
+        if (infoBtn) {
+          infoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showCompetenceDescription(subAttr.description);
+          });
+        }
+        
+        // Gérer les clics sur les boutons +/-
+        const decreaseBtn = subAttrDiv.querySelector('[data-action="decrease"]');
+        const increaseBtn = subAttrDiv.querySelector('[data-action="increase"]');
+        
+        if (decreaseBtn) {
+          // ✅ Capturer les valeurs ACTUELLES de subAttr et group
+          const currentSubAttr = subAttr;
+          const currentGroup = group;
+          decreaseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleAttributeValueChange(currentSubAttr.id, -1, currentGroup);
+            renderCompetencesLevel(1, key, parentKeys);
+          });
+        }
+        
+        if (increaseBtn) {
+          // ✅ Capturer les valeurs ACTUELLES de subAttr et group
+          const currentSubAttr = subAttr;
+          const currentGroup = group;
+          increaseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleAttributeValueChange(currentSubAttr.id, 1, currentGroup);
+            renderCompetencesLevel(1, key, parentKeys);
+          });
+        }
+        
+        // Navigation vers le niveau 2 (groupes de compétences) en cliquant sur l'attribut
+        // mais pas sur les boutons +/- ou le bouton d'info
+        subAttrDiv.addEventListener('click', (e) => {
+          // Ne pas naviguer si le clic est sur un bouton d'action (+/-) ou sur l'icône d'info
+          if (!e.target.dataset.action && !e.target.classList.contains('info-icon')) {
+            // Clic sur l'attribut lui-même (pas sur les boutons +/- ou info)
+            renderCompetencesLevel(2, subAttr.id, path);
+          }
+        });
+        
+        attributesContainer.appendChild(subAttrDiv);
+      });
+      
+      competencesContainer.appendChild(attributesContainer);
+      
+      // Configurer le bouton Valider existant (saveCompetencesBtn)
+      if (saveCompetencesBtn) {
+        saveCompetencesBtn.style.display = 'block';
+        saveCompetencesBtn.onclick = () => saveAttributeValuesForGroup(groupId);
+        // Mettre à jour l'état (actif si modifications existantes)
+        updateSaveButtonState();
+      }
+    }
   } else if (level === 2) {
-    // Show groups - filter out system properties
-    const groupKeys = Object.keys(current).filter(k => !['name', 'description', 'id', 'value', 'skillGroups'].includes(k));
-    groupKeys.forEach(groupKey => {
-      const group = current[groupKey];
-      const groupValue = group.value || 0;
-      const groupDiv = document.createElement('div');
-      groupDiv.className = 'competence-level';
-      groupDiv.dataset.level = '3';
-      groupDiv.dataset.key = groupKey;
-      groupDiv.innerHTML = `
+    // Niveau des groupes de compétences (Furtivité, Observation) pour un attribut
+    // path = [groupId, attributeId]
+    const groupId = Number(path[0]); // ID du groupe d'attributs parent (ex: Conscience)
+    const attributeId = Number(path[1]); // ID de l'attribut parent (ex: Environnement)
+    
+    // Trouver l'attribut parent
+    const parentGroup = competencesHierarchy.find(g => g.id === groupId);
+    if (!parentGroup) {
+      console.warn('Groupe parent introuvable pour attributeId:', attributeId, 'groupId:', groupId);
+      competencesContainer.innerHTML = '<div class="competence-empty">Données manquantes. Rechargez la page.</div>';
+      return;
+    }
+    
+    const parentAttribute = parentGroup.attributes.find(attr => attr.id === attributeId);
+    if (!parentAttribute) {
+      console.warn('Attribut parent introuvable pour attributeId:', attributeId);
+      competencesContainer.innerHTML = '<div class="competence-empty">Données manquantes. Rechargez la page.</div>';
+      return;
+    }
+    
+    // Initialiser l'état pour cet attribut
+    const attributeValue = parentAttribute.value || 0;
+    
+    // Stocker les valeurs de base et réinitialiser les modifications UNIQUEMENT la première fois
+    // ou quand on change d'attribut
+    if (Object.keys(skillGroupBaseValues).length === 0 || currentAttributeGroup !== attributeId) {
+      skillGroupBaseValues = {};
+      skillGroupModifications = {};
+      (parentAttribute.skillGroups || []).forEach(sg => {
+        skillGroupBaseValues[sg.id] = sg.value || 0;
+      });
+    }
+    
+    // Initialiser currentAttributeGroup pour ce niveau
+    currentAttributeGroup = attributeId;
+    
+    // Recalculer le stock disponible (valeur de l'attribut parent - somme des groupes de compétences)
+    currentSkillGroupAvailablePoints = calculateAvailablePointsForSkillGroups(parentAttribute);
+    
+    // Afficher le stock de points disponibles
+    const reserveDiv = document.createElement('div');
+    reserveDiv.className = 'reserve-box';
+    reserveDiv.innerHTML = `Points disponibles: <strong id="skillGroupReserveCount">${currentSkillGroupAvailablePoints}</strong>`;
+    competencesContainer.appendChild(reserveDiv);
+    
+    // Ajouter un conteneur pour les groupes de compétences
+    const skillGroupsContainer = document.createElement('div');
+    skillGroupsContainer.className = 'skill-groups-container';
+    
+    // Afficher chaque groupe de compétences avec boutons +/- et valeur
+    (parentAttribute.skillGroups || []).forEach((sg, index) => {
+      // Utiliser la valeur modifiée si elle existe, sinon la valeur de base
+      const sgValue = skillGroupModifications[sg.id] !== undefined 
+        ? skillGroupModifications[sg.id] 
+        : (sg.value || 0);
+      
+      const sgDiv = document.createElement('div');
+      sgDiv.className = 'competence-level';
+      sgDiv.dataset.level = '3';
+      sgDiv.dataset.key = sg.id;
+      
+      // Règles pour les boutons :
+      // - Bouton "+" visible si stock de points > 0
+      // - Bouton "-" visible si le niveau ACTUEL > niveau de base
+      const baseSgValue = skillGroupBaseValues[sg.id] || 0;
+      const showIncrease = currentSkillGroupAvailablePoints > 0;
+      const showDecrease = sgValue > baseSgValue;
+      const showAnyControls = showIncrease || showDecrease;
+      
+      sgDiv.innerHTML = `
         <div class="competence-header">
-          <span class="competence-name">${group.name}</span>
-          <span class="competence-value">Niveau: ${groupValue}</span>
-          ${group.description ? '<button class="info-icon" title="Info">?</button>' : ''}
+          <span class="competence-name">${sg.name}</span>
+          <span class="competence-value">Niveau: ${sgValue}</span>
+          ${sg.description ? '<button class="info-icon" title="Info">?</button>' : ''}
         </div>
+        ${showAnyControls ? `
+        <div class="competence-controls">
+          ${showDecrease ? '<button type="button" class="icon-btn" data-action="decrease" data-skill-group-id="' + sg.id + '">-</button>' : ''}
+          <span>${sgValue}</span>
+          ${showIncrease ? '<button type="button" class="icon-btn" data-action="increase" data-skill-group-id="' + sg.id + '">+</button>' : ''}
+        </div>
+        ` : ''}
       `;
       
-      const infoBtn = groupDiv.querySelector('.info-icon');
+      const infoBtn = sgDiv.querySelector('.info-icon');
       if (infoBtn) {
         infoBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          showCompetenceDescription(group.description);
+          showCompetenceDescription(sg.description);
         });
       }
       
-      groupDiv.addEventListener('click', () => renderCompetencesLevel(3, groupKey, path));
-      competencesContainer.appendChild(groupDiv);
+      // Gérer les clics sur les boutons +/- pour les groupes de compétences
+      const decreaseBtn = sgDiv.querySelector('[data-action="decrease"]');
+      const increaseBtn = sgDiv.querySelector('[data-action="increase"]');
+      
+      if (decreaseBtn) {
+        decreaseBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleSkillGroupValueChange(sg.id, -1, parentAttribute, attributeId);
+          renderCompetencesLevel(2, attributeId, [groupId]);
+        });
+      }
+      
+      if (increaseBtn) {
+        increaseBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleSkillGroupValueChange(sg.id, 1, parentAttribute, attributeId);
+          renderCompetencesLevel(2, attributeId, [groupId]);
+        });
+      }
+      
+      // Navigation vers le niveau 3 (compétences) en cliquant sur le groupe de compétences
+      sgDiv.addEventListener('click', (e) => {
+        if (!e.target.dataset.action && !e.target.classList.contains('info-icon')) {
+          renderCompetencesLevel(3, sg.id, path);
+        }
+      });
+      
+      skillGroupsContainer.appendChild(sgDiv);
     });
+    
+    competencesContainer.appendChild(skillGroupsContainer);
+    
+    // Configurer le bouton Valider pour ce niveau
+    if (saveCompetencesBtn) {
+      saveCompetencesBtn.style.display = 'block';
+      saveCompetencesBtn.onclick = () => saveSkillGroupValuesForAttribute(attributeId);
+      updateSaveButtonState();
+    }
+    
   } else if (level === 3) {
-    // Show skills with points - filter out system properties
-    const skillKeys = Object.keys(current).filter(k => !['name', 'description', 'id', 'value', 'skills'].includes(k));
-    skillKeys.forEach(skillKey => {
-      const skill = current[skillKey];
+    // Niveau des compétences (Infiltration, Filature, Crochetage, Sabotage) pour un groupe de compétences
+    // path = [groupId, attributeId, skillGroupId]
+    const groupId = Number(path[0]); // ID du groupe d'attributs parent (ex: Conscience)
+    const attributeId = Number(path[1]); // ID de l'attribut parent (ex: Environnement)
+    const skillGroupId = Number(path[2]); // ID du groupe de compétences parent (ex: Furtivité)
+    
+    // Trouver la hiérarchie parent
+    const parentGroup = competencesHierarchy.find(g => g.id === groupId);
+    if (!parentGroup) {
+      console.warn('Groupe parent introuvable pour skillGroupId:', skillGroupId, 'groupId:', groupId);
+      competencesContainer.innerHTML = '<div class="competence-empty">Données manquantes. Rechargez la page.</div>';
+      return;
+    }
+    
+    const parentAttribute = parentGroup.attributes.find(attr => attr.id === attributeId);
+    if (!parentAttribute) {
+      console.warn('Attribut parent introuvable pour attributeId:', attributeId);
+      competencesContainer.innerHTML = '<div class="competence-empty">Données manquantes. Rechargez la page.</div>';
+      return;
+    }
+    
+    const parentSkillGroup = parentAttribute.skillGroups.find(sg => sg.id === skillGroupId);
+    if (!parentSkillGroup) {
+      console.warn('Groupe de compétences parent introuvable pour skillGroupId:', skillGroupId);
+      competencesContainer.innerHTML = '<div class="competence-empty">Données manquantes. Rechargez la page.</div>';
+      return;
+    }
+    
+    // Initialiser l'état pour ce groupe de compétences
+    const skillGroupValue = parentSkillGroup.value || 0;
+    
+    // Stocker les valeurs de base et réinitialiser les modifications UNIQUEMENT la première fois
+    // ou quand on change de groupe de compétences
+    if (Object.keys(skillBaseValues).length === 0 || currentAttributeGroup !== skillGroupId) {
+      skillBaseValues = {};
+      skillModifications = {};
+      (parentSkillGroup.skills || []).forEach(skill => {
+        skillBaseValues[skill.id] = skill.value || 0;
+      });
+    }
+    
+    // Initialiser currentAttributeGroup pour ce niveau
+    currentAttributeGroup = skillGroupId;
+    
+    // Recalculer le stock disponible (valeur du groupe de compétences parent - somme des compétences)
+    currentSkillAvailablePoints = calculateAvailablePointsForSkills(parentSkillGroup);
+    
+    // Afficher le stock de points disponibles
+    const reserveDiv = document.createElement('div');
+    reserveDiv.className = 'reserve-box';
+    reserveDiv.innerHTML = `Points disponibles: <strong id="skillReserveCount">${currentSkillAvailablePoints}</strong>`;
+    competencesContainer.appendChild(reserveDiv);
+    
+    // Ajouter un conteneur pour les compétences
+    const skillsContainer = document.createElement('div');
+    skillsContainer.className = 'skills-container';
+    
+    // Afficher chaque compétence avec boutons +/- et valeur
+    (parentSkillGroup.skills || []).forEach((skill, index) => {
+      // Utiliser la valeur modifiée si elle existe, sinon la valeur de base
+      const skillValue = skillModifications[skill.id] !== undefined 
+        ? skillModifications[skill.id] 
+        : (skill.value || 0);
+      
       const skillDiv = document.createElement('div');
-      skillDiv.className = 'competence-skill';
+      skillDiv.className = 'competence-level';
+      skillDiv.dataset.level = '4';
+      skillDiv.dataset.key = skill.id;
+      
+      // Règles pour les boutons :
+      // - Bouton "+" visible si stock de points > 0
+      // - Bouton "-" visible si le niveau ACTUEL > niveau de base
+      const baseSkillValue = skillBaseValues[skill.id] || 0;
+      const showIncrease = currentSkillAvailablePoints > 0;
+      const showDecrease = skillValue > baseSkillValue;
+      const showAnyControls = showIncrease || showDecrease;
+      
       skillDiv.innerHTML = `
         <div class="competence-header">
           <span class="competence-name">${skill.name}</span>
-          <span class="competence-value">Niveau: ${skill.value}</span>
+          <span class="competence-value">Niveau: ${skillValue}</span>
           ${skill.description ? '<button class="info-icon" title="Info">?</button>' : ''}
         </div>
+        ${showAnyControls ? `
         <div class="competence-controls">
-          <button type="button" class="icon-btn" data-action="decrease" data-key="${skillKey}">-</button>
-          <span>${skill.value}</span>
-          <button type="button" class="icon-btn" data-action="increase" data-key="${skillKey}">+</button>
+          ${showDecrease ? '<button type="button" class="icon-btn" data-action="decrease" data-skill-id="' + skill.id + '">-</button>' : ''}
+          <span>${skillValue}</span>
+          ${showIncrease ? '<button type="button" class="icon-btn" data-action="increase" data-skill-id="' + skill.id + '">+</button>' : ''}
         </div>
+        ` : ''}
       `;
       
       const infoBtn = skillDiv.querySelector('.info-icon');
@@ -1273,15 +1990,38 @@ function renderCompetencesLevel(level, key, parentKeys = []) {
         });
       }
       
-      skillDiv.addEventListener('click', (e) => {
-        if (e.target.dataset.action) {
-          const action = e.target.dataset.action;
-          const skillId = e.target.dataset.skillId;
-          changeCompetenceValue(path, level + 1, skillId, action);
-        }
-      });
-      competencesContainer.appendChild(skillDiv);
+      // Gérer les clics sur les boutons +/- pour les compétences
+      const decreaseBtn = skillDiv.querySelector('[data-action="decrease"]');
+      const increaseBtn = skillDiv.querySelector('[data-action="increase"]');
+      
+      if (decreaseBtn) {
+        decreaseBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleSkillValueChange(skill.id, -1, parentSkillGroup, skillGroupId);
+          renderCompetencesLevel(3, skillGroupId, [groupId, attributeId]);
+        });
+      }
+      
+      if (increaseBtn) {
+        increaseBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleSkillValueChange(skill.id, 1, parentSkillGroup, skillGroupId);
+          renderCompetencesLevel(3, skillGroupId, [groupId, attributeId]);
+        });
+      }
+      
+      skillsContainer.appendChild(skillDiv);
     });
+    
+    competencesContainer.appendChild(skillsContainer);
+    
+    // Configurer le bouton Valider pour ce niveau
+    if (saveCompetencesBtn) {
+      saveCompetencesBtn.style.display = 'block';
+      saveCompetencesBtn.onclick = () => saveSkillValuesForGroup(skillGroupId);
+      updateSaveButtonState();
+    }
+    
   }
 }
 
@@ -1449,13 +2189,18 @@ async function saveCompetencesAllocation() {
       });
       
       for (const attribute of group.attributes || []) {
+        // Utiliser la valeur modifiée si elle existe, sinon la valeur d'origine
+        const modifiedValue = attributeModifications[attribute.id] !== undefined 
+          ? attributeModifications[attribute.id] 
+          : (attribute.value || 0);
+        
         await fetch('/api/skills/attribute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: currentAgent.id,
             attributeId: attribute.id,
-            value: attribute.value || 0
+            value: modifiedValue
           })
         });
         
@@ -2003,7 +2748,7 @@ if (attributesBtn) attributesBtn.addEventListener('click', openAttributesScreen)
 if (competencesBtn) competencesBtn.addEventListener('click', openCompetencesScreen);
 if (saveSkillsBtn) saveSkillsBtn.addEventListener('click', saveSkillsAllocation);
 if (saveAttributesBtn) saveAttributesBtn.addEventListener('click', saveAttributesAllocation);
-if (saveCompetencesBtn) saveCompetencesBtn.addEventListener('click', saveCompetencesAllocation);
+// ❌ Supprimé : if (saveCompetencesBtn) saveCompetencesBtn.addEventListener('click', saveCompetencesAllocation);
 if (closeCompetenceDescBtn) closeCompetenceDescBtn.addEventListener('click', hideCompetenceDescription);
 if (competenceDescModal) competenceDescModal.addEventListener('click', (e) => {
   if (e.target === competenceDescModal) hideCompetenceDescription();
