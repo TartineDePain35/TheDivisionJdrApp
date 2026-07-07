@@ -35,6 +35,16 @@ app.get('/api/talents', async (req, res) => {
   res.json({ success: true, talents });
 });
 
+app.get('/api/agents/:id/talents', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) {
+    return res.status(400).json({ success: false, message: 'Identifiant agent invalide.' });
+  }
+
+  const talents = await db.getAgentTalents(id);
+  res.json(talents);
+});
+
 app.post('/api/agents', async (req, res) => {
   try {
     const agent = req.body;
@@ -96,6 +106,7 @@ app.put('/api/agents/:id', async (req, res) => {
     if (agent.lifePercent !== undefined && typeof agent.lifePercent !== 'number') agent.lifePercent = Number(agent.lifePercent) || 100;
     if (agent.availableStatsPoints !== undefined && typeof agent.availableStatsPoints !== 'number') agent.availableStatsPoints = Number(agent.availableStatsPoints) || 0;
     if (agent.availableAttributesPoints !== undefined && typeof agent.availableAttributesPoints !== 'number') agent.availableAttributesPoints = Number(agent.availableAttributesPoints) || 0;
+    if (agent.availableTalentPoints !== undefined && typeof agent.availableTalentPoints !== 'number') agent.availableTalentPoints = Number(agent.availableTalentPoints) || 0;
     
     agent.id = id;
 

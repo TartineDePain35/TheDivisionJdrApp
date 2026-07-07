@@ -189,6 +189,10 @@
             <label for="availableAttributesPoints">Points Attributs</label>
             <input type="number" id="availableAttributesPoints" name="availableAttributesPoints" min="0" />
           </div>
+          <div class="form-group">
+            <label for="availableTalentPoints">Points Talents</label>
+            <input type="number" id="availableTalentPoints" name="availableTalentPoints" min="0" />
+          </div>
         </div>
       </div>
 
@@ -256,6 +260,7 @@
         document.getElementById('lifePercent').value = agent.lifePercent ?? 100;
         document.getElementById('availableStatsPoints').value = agent.availableStatsPoints ?? 0;
         document.getElementById('availableAttributesPoints').value = agent.availableAttributesPoints ?? 0;
+        document.getElementById('availableTalentPoints').value = agent.availableTalentPoints ?? 0;
         document.getElementById('activeMission').value = agent.activeMission || '';
         document.getElementById('inventoryCapacity').value = agent.inventoryCapacity ?? 30;
 
@@ -305,6 +310,7 @@
       updatedAgent.lifePercent = parseInt(document.getElementById('lifePercent').value) || 100;
       updatedAgent.availableStatsPoints = parseInt(document.getElementById('availableStatsPoints').value) || 0;
       updatedAgent.availableAttributesPoints = parseInt(document.getElementById('availableAttributesPoints').value) || 0;
+      updatedAgent.availableTalentPoints = parseInt(document.getElementById('availableTalentPoints').value) || 0;
       updatedAgent.activeMission = document.getElementById('activeMission').value || '';
       updatedAgent.inventoryCapacity = parseInt(document.getElementById('inventoryCapacity').value) || 30;
       updatedAgent.assignedEffects = Array.from(agentEffects);

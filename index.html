@@ -233,8 +233,8 @@
                 <span id="heroAttrPoints">0</span>
               </div>
               <div class="status-badge attrs-badge">
-                <span class="badge-icon">📊</span>
-                <span id="heroCompPoints">0</span>
+                <span class="badge-icon">✨</span>
+                <span id="heroTalentPoint">0</span>
               </div>
             </div>
             <button id="homeBtn" class="btn btn-tertiary hidden" aria-label="Retour au tableau de bord">Retour tableau de bord</button>
@@ -259,7 +259,7 @@
             <button id="skillsBtn" class="btn btn-secondary">Caractéristiques</button>
             <button id="attributesBtn" class="btn btn-secondary">Attributs</button>
             <button id="competencesBtn" class="btn btn-secondary">Compétences</button>
-            <button class="btn btn-secondary">Talents</button>
+            <button id="talentsBtn" class="btn btn-secondary">Talents</button>
             <button class="btn btn-secondary">Messages</button>
           </div>
         </div>
@@ -377,6 +377,23 @@
             <h3>Compétences</h3>
             <div id="competencesContainer"></div>
             <button id="saveCompetencesBtn" type="button" class="btn btn-primary">Valider</button>
+          </article>
+        </div>
+
+        <div id="talentsView" class="hidden">
+          <article class="dashboard-card talents-card">
+            <h3>Talents</h3>
+            <div class="talents-section">
+              <h4>Talents actifs</h4>
+              <div id="talentsContainer" class="talents-grid"></div>
+            </div>
+            <div class="talents-section">
+              <h4>Talents disponibles</h4>
+              <div id="talentsAvailableContainer" class="talents-grid"></div>
+            </div>
+            <div class="talents-actions">
+              <button id="confirmTalentBtn" type="button" class="btn btn-primary" disabled>Valider</button>
+            </div>
           </article>
         </div>
       </section>

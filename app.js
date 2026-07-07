@@ -13,6 +13,7 @@ const heroName = document.getElementById('heroName');
 const heroLife = document.getElementById('heroLife');
 const heroStatsPoints = document.getElementById('heroStatsPoints');
 const heroAttrPoints = document.getElementById('heroAttrPoints');
+const heroTalentPoint = document.getElementById('heroTalentPoint');
 const heroMission = document.getElementById('heroMission');
 const missionDescription = document.getElementById('missionDescription');
 const agentEffects = document.getElementById('agentEffects');
@@ -27,6 +28,11 @@ const inventoryBtn = document.getElementById('inventoryBtn');
 const skillsBtn = document.getElementById('skillsBtn');
 const attributesBtn = document.getElementById('attributesBtn');
 const competencesBtn = document.getElementById('competencesBtn');
+const talentsBtn = document.getElementById('talentsBtn');
+const talentsView = document.getElementById('talentsView');
+const talentsContainer = document.getElementById('talentsContainer');
+const talentsAvailableContainer = document.getElementById('talentsAvailableContainer');
+const confirmTalentBtn = document.getElementById('confirmTalentBtn');
 const inventoryList = document.getElementById('inventoryList');
 const inventoryCapacityLabel = document.getElementById('inventoryCapacity');
 const inventoryWeight = document.getElementById('inventoryWeight');
@@ -114,6 +120,9 @@ let talentIndex = 0;
 let selectedTalent = null;
 let talentIdSelected = null;
 let currentAgent = null;
+let selectedAgentTalent = null;
+let selectedAgentTalentId = null;
+let selectedAgentTalentTile = null;
 let pendingDeleteIndex = null;
 let weaponsData = [];
 let medicalData = [];
@@ -138,6 +147,10 @@ let attributesState = {
 };
 let baseStats = {};
 let baseAttributes = {};
+
+// État pour suivre les modifications dans la vue simple des attributs
+let attributesViewModifications = {}; // {conscience: value, dexterity: value, technique: value}
+let attributesViewInitialValues = {}; // Valeurs initiales au moment de l'ouverture de l'écran
 
 // État pour la redistribution des points au niveau des attributs (niveau 1)
 let currentAttributeGroup = null; // ID du groupe d'attributs sélectionné (ex: Conscience)
@@ -278,6 +291,7 @@ function createDefaultAgent(data) {
     password: data.password,
     availableStatsPoints: 0,
     availableAttributesPoints: 0,
+    availableTalentPoints: 0,
     lifePercent: 100,
     activeMission: 'Aucune affectation en cours. Agent disponible.',
     wounds: [],
@@ -321,6 +335,7 @@ function renderAgent(agent) {
   heroLife.textContent = `${agent.lifePercent ?? 100}%`;
   heroStatsPoints.textContent = String(agent.availableStatsPoints ?? 0);
   heroAttrPoints.textContent = String(agent.availableAttributesPoints ?? 0);
+  heroTalentPoint.textContent = String(agent.availableTalentPoints ?? 0);
   heroMission.textContent = 'Tableau de bord de l’Aventure';
   missionDescription.textContent = agent.activeMission || agent.mission || 'Disponible, au QG';
   if (brandTag) {
@@ -910,6 +925,17 @@ function openSkillsScreen() {
 function openAttributesScreen() {
   if (!currentAgent) return;
   initializeAttributesState();
+  
+  // Stocker les valeurs initiales au moment de l'ouverture
+  attributesViewInitialValues = {
+    conscience: attributesState.attributes.conscience,
+    dexterity: attributesState.attributes.dexterity,
+    technique: attributesState.attributes.technique,
+  };
+  
+  // Initialiser le suivi des modifications pour la vue des attributs
+  attributesViewModifications = {};
+  
   dashboardView.classList.add('hidden');
   inventoryView.classList.add('hidden');
   skillsView?.classList.add('hidden');
@@ -918,6 +944,31 @@ function openAttributesScreen() {
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
   renderAttributesScreen();
+  
+  // Désactiver le bouton Valider par défaut (pas de modifications encore)
+  if (saveAttributesBtn) {
+    saveAttributesBtn.disabled = true;
+  }
+}
+
+function openTalentsScreen() {
+  if (!currentAgent) return;
+
+  dashboardView.classList.add('hidden');
+  inventoryView.classList.add('hidden');
+  skillsView?.classList.add('hidden');
+  attributesView?.classList.add('hidden');
+  competencesView?.classList.add('hidden');
+  talentsView?.classList.remove('hidden');
+  heroMission.textContent = 'Talents';
+  if (logoutBtn) logoutBtn.classList.remove('hidden');
+  if (homeBtn) homeBtn.classList.remove('hidden');
+
+  renderTalentsScreen();
+}
+
+if (confirmTalentBtn) {
+  confirmTalentBtn.addEventListener('click', confirmTalentSelection);
 }
 
 async function openCompetencesScreen() {
@@ -1030,6 +1081,165 @@ function renderAttributesScreen() {
     }
   });
   updateAttributesButtons();
+  updateSaveAttributesButtonState();
+}
+
+async function renderTalentsScreen() {
+  if (!talentsContainer || !talentsAvailableContainer || !currentAgent) return;
+
+  selectedAgentTalent = null;
+  selectedAgentTalentId = null;
+  selectedAgentTalentTile = null;
+  if (confirmTalentBtn) {
+    confirmTalentBtn.disabled = true;
+    confirmTalentBtn.title = 'Sélectionnez un talent disponible pour activer.';
+  }
+
+  try {
+    const [activeResponse, allResponse] = await Promise.all([
+      fetch(`/api/agents/${currentAgent.id}/talents`),
+      fetch('/api/talents'),
+    ]);
+
+    if (!activeResponse.ok) {
+      throw new Error(`Erreur lors du chargement des talents actifs: ${activeResponse.status}`);
+    }
+    if (!allResponse.ok) {
+      throw new Error(`Erreur lors du chargement des talents disponibles: ${allResponse.status}`);
+    }
+
+    const activeTalents = await activeResponse.json();
+    const allTalentsPayload = await allResponse.json();
+    const allTalents = Array.isArray(allTalentsPayload)
+      ? allTalentsPayload
+      : Array.isArray(allTalentsPayload.talents)
+      ? allTalentsPayload.talents
+      : [];
+
+    const activeIds = new Set((activeTalents || []).map((talent) => talent.id));
+    const availableTalents = allTalents.filter((talent) => !activeIds.has(talent.id));
+    const hasTalentPoints = Number(currentAgent.availableTalentPoints ?? 0) > 0;
+
+    talentsContainer.innerHTML = '';
+    talentsAvailableContainer.innerHTML = '';
+    talentsAvailableContainer.classList.toggle('talents-available-disabled', !hasTalentPoints);
+
+    if (!activeTalents || !activeTalents.length) {
+      talentsContainer.innerHTML = '<div class="talents-empty">Aucun talent actif.</div>';
+    } else {
+      activeTalents.forEach((talent) => {
+        talentsContainer.appendChild(createTalentTile(talent, false, false));
+      });
+    }
+
+    if (!availableTalents.length) {
+      talentsAvailableContainer.innerHTML = '<div class="talents-empty">Aucun talent disponible.</div>';
+    } else {
+      availableTalents.forEach((talent) => {
+        talentsAvailableContainer.appendChild(createTalentTile(talent, true, !hasTalentPoints));
+      });
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des talents:', error);
+    talentsContainer.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
+    talentsAvailableContainer.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
+  }
+}
+
+function createTalentTile(talent, isAvailable = false, isDisabled = false) {
+  const talentTile = document.createElement('div');
+  talentTile.className = 'talent-tile';
+  if (isAvailable) {
+    talentTile.classList.add('talent-tile-available');
+  }
+  if (isDisabled) {
+    talentTile.classList.add('talent-tile-disabled');
+  }
+  talentTile.dataset.talentId = talent.id;
+
+  const talentName = document.createElement('span');
+  talentName.className = 'talent-name';
+  talentName.textContent = talent.title || 'Talent inconnu';
+
+  const talentInfoBtn = document.createElement('button');
+  talentInfoBtn.type = 'button';
+  talentInfoBtn.className = 'talent-info-btn';
+  talentInfoBtn.textContent = '?';
+  talentInfoBtn.title = 'Voir la description';
+  talentInfoBtn.dataset.talentId = talent.id;
+  talentInfoBtn.dataset.talentDescription = talent.description || 'Aucune description disponible.';
+
+  talentInfoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showTalentDescription(talent.description || 'Aucune description disponible.');
+  });
+
+  if (isAvailable && !isDisabled) {
+    talentTile.addEventListener('click', () => selectAvailableTalent(talent, talentTile));
+    talentTile.style.cursor = 'pointer';
+  }
+
+  talentTile.appendChild(talentName);
+  talentTile.appendChild(talentInfoBtn);
+  return talentTile;
+}
+
+function selectAvailableTalent(talent, tile) {
+  if (!talent || !talent.id) return;
+
+  if (selectedAgentTalentId === Number(talent.id)) {
+    if (selectedAgentTalentTile) {
+      selectedAgentTalentTile.classList.remove('selected');
+    }
+    selectedAgentTalent = null;
+    selectedAgentTalentId = null;
+    selectedAgentTalentTile = null;
+  } else {
+    if (selectedAgentTalentTile) {
+      selectedAgentTalentTile.classList.remove('selected');
+    }
+    selectedAgentTalent = talent;
+    selectedAgentTalentId = Number(talent.id);
+    selectedAgentTalentTile = tile;
+    tile.classList.add('selected');
+  }
+
+  if (confirmTalentBtn) {
+    confirmTalentBtn.disabled = !selectedAgentTalentId;
+  }
+}
+
+async function confirmTalentSelection() {
+  if (!currentAgent || !selectedAgentTalent || !selectedAgentTalentId) return;
+  if (Number(currentAgent.availableTalentPoints ?? 0) <= 0) {
+    showToast('Aucun point de talent disponible.');
+    return;
+  }
+
+  currentAgent.availableTalentPoints = Math.max(0, Number(currentAgent.availableTalentPoints ?? 0) - 1);
+  currentAgent.availableStatsPoints = Math.max(0, Number(currentAgent.availableStatsPoints ?? 0) - 1);
+  currentAgent.talents = Array.isArray(currentAgent.talents)
+    ? [...currentAgent.talents, { ...selectedAgentTalent, id: Number(selectedAgentTalentId) }]
+    : [{ ...selectedAgentTalent, id: Number(selectedAgentTalentId) }];
+
+  renderAgent(currentAgent);
+  await persistCurrentAgent();
+  await renderTalentsScreen();
+  showToast(`Talent activé : ${selectedAgentTalent.title}`);
+}
+
+function showTalentDescription(description) {
+  if (!competenceDescModal || !competenceDescContent) return;
+  competenceDescContent.textContent = description;
+  competenceDescModal.classList.add('active');
+}
+
+function updateSaveAttributesButtonState() {
+  if (!saveAttributesBtn) return;
+  
+  // Vérifier si des modifications ont été apportées
+  const hasModifications = Object.keys(attributesViewModifications).length > 0;
+  saveAttributesBtn.disabled = !hasModifications;
 }
 
 function updateSkillsButtons() {
@@ -2127,6 +2337,9 @@ function changeAttributeStat(attr, action) {
     attributesState.reserve = Number(attributesState.reserve) || 0;
   }
   
+  // Stocker la valeur actuelle avant modification pour détecter les changements
+  const oldValue = attributesState.attributes[attr];
+  
   if (action === 'increase') {
     if (attributesState.reserve <= 0) return;
     attributesState.attributes[attr] = (attributesState.attributes[attr] || 0) + 1;
@@ -2143,7 +2356,20 @@ function changeAttributeStat(attr, action) {
     currentAgent.availableAttributesPoints = attributesState.reserve;
   }
   
+  // Marquer la modification dans attributesViewModifications
+  const newValue = attributesState.attributes[attr];
+  const initialValue = attributesViewInitialValues[attr];
+  
+  if (newValue !== initialValue) {
+    // La valeur actuelle est différente de la valeur initiale
+    attributesViewModifications[attr] = newValue;
+  } else {
+    // La valeur actuelle est revenue à la valeur initiale
+    delete attributesViewModifications[attr];
+  }
+  
   renderAttributesScreen();
+  updateSaveAttributesButtonState();
 }
 
 async function saveSkillsAllocation() {
@@ -2168,6 +2394,11 @@ async function saveAttributesAllocation() {
   currentAgent.availableAttributesPoints = attributesState.reserve;
   await persistCurrentAgent();
   showToast('Attributs mis à jour.');
+  
+  // Réinitialiser les modifications après sauvegarde
+  attributesViewModifications = {};
+  attributesViewInitialValues = {};
+  
   renderAgent(currentAgent);
   openDashboardView();
 }
@@ -2746,6 +2977,7 @@ inventoryBtn.addEventListener('click', openInventoryScreen);
 if (skillsBtn) skillsBtn.addEventListener('click', openSkillsScreen);
 if (attributesBtn) attributesBtn.addEventListener('click', openAttributesScreen);
 if (competencesBtn) competencesBtn.addEventListener('click', openCompetencesScreen);
+if (talentsBtn) talentsBtn.addEventListener('click', openTalentsScreen);
 if (saveSkillsBtn) saveSkillsBtn.addEventListener('click', saveSkillsAllocation);
 if (saveAttributesBtn) saveAttributesBtn.addEventListener('click', saveAttributesAllocation);
 // ❌ Supprimé : if (saveCompetencesBtn) saveCompetencesBtn.addEventListener('click', saveCompetencesAllocation);
