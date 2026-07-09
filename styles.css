@@ -439,6 +439,74 @@ input::placeholder {
   margin-top: 12px;
 }
 
+.messages-list {
+  display: grid;
+  gap: 10px;
+}
+
+.message-card {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.04);
+  overflow: hidden;
+}
+
+.message-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 14px 16px;
+  display: grid;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.message-title {
+  color: var(--accent);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.message-preview {
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.message-body {
+  padding: 0 16px 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.message-body.collapsed {
+  display: none;
+}
+
+.message-card.unread {
+  border-color: var(--accent);
+  background: rgba(255, 143, 31, 0.08);
+  box-shadow: 0 0 12px rgba(255, 143, 31, 0.2);
+}
+
+.message-card.unread .message-toggle:hover {
+  background: rgba(255, 143, 31, 0.04);
+}
+
+.message-card.unread .message-title {
+  color: var(--accent);
+}
+
+.messages-empty {
+  padding: 12px 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 .modal-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -904,6 +972,11 @@ input::placeholder {
 .competence-level:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.14);
+}
+
+.competence-level.has-available-points {
+  border: 2px solid #28a745 !important;
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
 }
 
 .competence-skill {

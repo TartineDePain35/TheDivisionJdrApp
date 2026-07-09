@@ -149,12 +149,72 @@
       text-align: center;
       padding: 2rem;
     }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-card {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 90vw;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    .modal-card h2 {
+      color: #fff;
+      margin: 0 0 1rem;
+      font-size: 1.2rem;
+    }
+    .message-item {
+      background: #0f3460;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      padding: 0.75rem;
+      position: relative;
+    }
+    .message-item .message-value {
+      color: #fff;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+      word-break: break-word;
+    }
+    .message-item .message-date {
+      color: #a0a0a0;
+      font-size: 0.75rem;
+    }
+    .message-item .delete-message-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: #e94560;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+    .message-item .delete-message-btn:hover {
+      background: #c83a56;
+    }
   </style>
 </head>
 <body>
   <div class="admin-header">
     <h1>Édition Agent</h1>
-    <a href="/admin/dashboard" class="btn btn-tertiary">Retour</a>
+    <div style="display: flex; gap: 0.75rem; align-items: center;">
+      <a href="/admin/dashboard" class="btn btn-tertiary">Retour</a>
+      <button id="sendMessageBtn" class="btn btn-primary">Envoyer un message</button>
+    </div>
   </div>
 
   <div id="agentInfo" class="agent-info-header" style="display: none;">
@@ -222,6 +282,29 @@
   </div>
 
   <div id="loading" class="loading">Chargement de l'agent...</div>
+
+  <!-- Modal pour envoyer un message -->
+  <div id="messageModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 500px;">
+      <h2>Envoyer un message</h2>
+      <form id="messageForm">
+        <div class="form-group">
+          <label for="messageValue">Message</label>
+          <textarea id="messageValue" name="messageValue" rows="4" placeholder="Saisissez votre message..." style="min-height: 100px;"></textarea>
+        </div>
+        <div class="form-actions" style="justify-content: flex-end; margin-top: 1rem;">
+          <button type="button" id="cancelMessageBtn" class="btn btn-tertiary">Annuler</button>
+          <button type="submit" id="sendMessageSubmitBtn" class="btn btn-primary" disabled>Envoyer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Section pour afficher les messages -->
+  <div id="messagesSection" class="form-section" style="display: none;">
+    <h3>Messages envoyés à cet agent</h3>
+    <div id="messagesList" class="effects-grid"></div>
+  </div>
 
   <script>
     const agentId = window.location.pathname.split('/').pop();
@@ -343,7 +426,286 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', loadAgent);
+    let isSubmittingMessage = false;
+
+    function openMessageModal() {
+      if (!messageModal) return;
+      messageModal.style.display = 'flex';
+      requestAnimationFrame(() => messageModal.classList.add('active'));
+      if (messageValueInput) {
+        messageValueInput.value = '';
+        messageValueInput.focus();
+      }
+      if (sendMessageSubmitBtn) {
+        sendMessageSubmitBtn.disabled = true;
+      }
+    }
+
+    function closeMessageModal() {
+      if (!messageModal) return;
+      messageModal.classList.remove('active');
+      messageModal.style.display = 'none';
+    }
+
+    // Gestion des messages
+    const messageModal = document.getElementById('messageModal');
+    const messageForm = document.getElementById('messageForm');
+    const messageValueInput = document.getElementById('messageValue');
+    const sendMessageBtn = document.getElementById('sendMessageBtn');
+    const sendMessageSubmitBtn = document.getElementById('sendMessageSubmitBtn');
+    const cancelMessageBtn = document.getElementById('cancelMessageBtn');
+    const messagesSection = document.getElementById('messagesSection');
+    const messagesList = document.getElementById('messagesList');
+
+    // Charger les messages de l'agent
+    async function loadMessages() {
+      if (!messagesSection || !messagesList) return;
+
+      try {
+        const response = await fetch(`/api/messages/${agentId}`);
+        const data = await response.json();
+
+        if (data.success && data.messages) {
+          renderMessages(data.messages);
+          messagesSection.style.display = 'block';
+        } else {
+          messagesList.innerHTML = '<div class="loading">Aucun message envoyé.</div>';
+          messagesSection.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Erreur de chargement des messages:', error);
+      }
+    }
+
+    // Afficher les messages
+    function renderMessages(messages) {
+      if (!messagesList) return;
+      
+      messagesList.innerHTML = '';
+      
+      if (messages.length === 0) {
+        messagesList.innerHTML = '<div class="loading">Aucun message envoyé.</div>';
+        return;
+      }
+
+      messages.forEach(message => {
+        const messageEl = document.createElement('div');
+        messageEl.className = 'message-item';
+        messageEl.innerHTML = `
+          <button class="delete-message-btn" data-message-id="${message.id}" title="Supprimer">×</button>
+          <div class="message-value">${escapeHtml(message.value)}</div>
+          <div class="message-date">ID: ${message.id}</div>
+        `;
+        
+        // Ajouter l'écouteur pour la suppression
+        const deleteBtn = messageEl.querySelector('.delete-message-btn');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await deleteMessage(message.id);
+          });
+        }
+        
+        messagesList.appendChild(messageEl);
+      });
+    }
+
+    // Supprimer un message
+    async function deleteMessage(messageId) {
+      if (!confirm('Voulez-vous vraiment supprimer ce message ?')) return;
+
+      try {
+        const response = await fetch(`/api/messages/${messageId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          showToast('Message supprimé avec succès !');
+          loadMessages();
+        } else {
+          showToast('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        showToast('Erreur réseau: ' + error.message);
+      }
+    }
+
+    // Échapper le HTML pour éviter les XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Attacher les écouteurs des messages dans DOMContentLoaded pour s'assurer que le DOM est prêt
+    document.addEventListener('DOMContentLoaded', () => {
+      // Gestion des messages - Attacher les écouteurs
+      const messageModal = document.getElementById('messageModal');
+      const messageForm = document.getElementById('messageForm');
+      const messageValueInput = document.getElementById('messageValue');
+      const sendMessageBtn = document.getElementById('sendMessageBtn');
+      const sendMessageSubmitBtn = document.getElementById('sendMessageSubmitBtn');
+      const cancelMessageBtn = document.getElementById('cancelMessageBtn');
+      const messagesSection = document.getElementById('messagesSection');
+      const messagesList = document.getElementById('messagesList');
+
+      // Ouvrir la modal de message
+      if (sendMessageBtn) {
+        sendMessageBtn.addEventListener('click', () => {
+          if (messageModal) {
+            openMessageModal();
+          }
+        });
+      }
+
+      // Fermer la modal de message
+      if (cancelMessageBtn) {
+        cancelMessageBtn.addEventListener('click', () => {
+          if (messageModal) closeMessageModal();
+        });
+      }
+
+      // Fermer la modal en cliquant en dehors
+      if (messageModal) {
+        messageModal.addEventListener('click', (e) => {
+          if (e.target === messageModal) {
+            closeMessageModal();
+          }
+        });
+      }
+
+      // Activer/désactiver le bouton Envoyer selon le contenu du message
+      if (messageValueInput) {
+        messageValueInput.addEventListener('input', () => {
+          if (sendMessageSubmitBtn) {
+            sendMessageSubmitBtn.disabled = !messageValueInput.value.trim();
+          }
+        });
+      }
+
+      // Envoyer le message
+      if (messageForm) {
+        messageForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+
+          const messageValue = messageValueInput?.value.trim();
+          if (!messageValue || isSubmittingMessage) return;
+
+          isSubmittingMessage = true;
+          if (sendMessageSubmitBtn) {
+            sendMessageSubmitBtn.disabled = true;
+          }
+
+          try {
+            const response = await fetch('/api/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                agent_id: parseInt(agentId),
+                value: messageValue
+              })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+              showToast('Message envoyé avec succès !');
+              if (messageModal) closeMessageModal();
+              if (messageValueInput) messageValueInput.value = '';
+              if (sendMessageSubmitBtn) sendMessageSubmitBtn.disabled = true;
+              loadMessages();
+            } else {
+              showToast('Erreur: ' + (data.message || 'Inconnu'));
+            }
+          } catch (error) {
+            showToast('Erreur réseau: ' + error.message);
+          } finally {
+            isSubmittingMessage = false;
+            if (sendMessageSubmitBtn && messageValueInput) {
+              sendMessageSubmitBtn.disabled = !messageValueInput.value.trim();
+            }
+          }
+        });
+      }
+
+      // Charger les messages de l'agent
+      async function loadMessages() {
+        if (!messagesSection || !messagesList) return;
+
+        try {
+          const response = await fetch(`/api/messages/${agentId}`);
+          const data = await response.json();
+
+          if (data.success && data.messages) {
+            renderMessages(data.messages);
+            messagesSection.style.display = 'block';
+          } else {
+            messagesList.innerHTML = '<div class="loading">Aucun message envoyé.</div>';
+            messagesSection.style.display = 'block';
+          }
+        } catch (error) {
+          console.error('Erreur de chargement des messages:', error);
+        }
+      }
+
+      // Afficher les messages
+      function renderMessages(messages) {
+        if (!messagesList) return;
+        
+        messagesList.innerHTML = '';
+        
+        if (messages.length === 0) {
+          messagesList.innerHTML = '<div class="loading">Aucun message envoyé.</div>';
+          return;
+        }
+
+        messages.forEach(message => {
+          const messageEl = document.createElement('div');
+          messageEl.className = 'message-item';
+          messageEl.innerHTML = `
+            <button class="delete-message-btn" data-message-id="${message.id}" title="Supprimer">×</button>
+            <div class="message-value">${escapeHtml(message.value)}</div>
+            <div class="message-date">ID: ${message.id}</div>
+          `;
+          
+          // Ajouter l'écouteur pour la suppression
+          const deleteBtn = messageEl.querySelector('.delete-message-btn');
+          if (deleteBtn) {
+            deleteBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              await deleteMessage(message.id);
+            });
+          }
+          
+          messagesList.appendChild(messageEl);
+        });
+      }
+
+      // Supprimer un message
+      async function deleteMessage(messageId) {
+        if (!confirm('Voulez-vous vraiment supprimer ce message ?')) return;
+
+        try {
+          const response = await fetch(`/api/messages/${messageId}`, {
+            method: 'DELETE'
+          });
+
+          const data = await response.json();
+          if (data.success) {
+            showToast('Message supprimé avec succès !');
+            loadMessages();
+          } else {
+            showToast('Erreur: ' + (data.message || 'Inconnu'));
+          }
+        } catch (error) {
+          showToast('Erreur réseau: ' + error.message);
+        }
+      }
+
+      // Charger l'agent et les messages
+      loadAgent();
+      loadMessages();
+    });
   </script>
   <div id="toast" class="toast"></div>
 </body>

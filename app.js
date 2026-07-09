@@ -29,8 +29,11 @@ const skillsBtn = document.getElementById('skillsBtn');
 const attributesBtn = document.getElementById('attributesBtn');
 const competencesBtn = document.getElementById('competencesBtn');
 const talentsBtn = document.getElementById('talentsBtn');
+const messagesBtn = document.getElementById('messagesBtn');
 const talentsView = document.getElementById('talentsView');
+const messagesView = document.getElementById('messagesView');
 const talentsContainer = document.getElementById('talentsContainer');
+const messagesList = document.getElementById('messagesList');
 const talentsAvailableContainer = document.getElementById('talentsAvailableContainer');
 const confirmTalentBtn = document.getElementById('confirmTalentBtn');
 const inventoryList = document.getElementById('inventoryList');
@@ -129,6 +132,8 @@ let medicalData = [];
 let equipmentData = [];
 let competencesHierarchy = [];
 let competencesState = {};
+let currentAgentMessages = [];
+let expandedMessageIds = new Set();
 let skillsState = {
   reserve: 0,
   stats: {
@@ -387,6 +392,11 @@ function renderAgent(agent) {
     inventoryCapacityLabel.textContent = String(agent.inventoryCapacity ?? 30);
   }
   openDashboardView();
+  
+  // Charger les messages pour mettre à jour le compteur de messages non lus
+  loadMessagesForCurrentAgent().catch(error => {
+    console.error('Erreur lors du chargement initial des messages:', error);
+  });
 }
 
 function showModal(modal) {
@@ -903,6 +913,9 @@ function openInventoryScreen() {
   inventoryView.classList.remove('hidden');
   skillsView?.classList.add('hidden');
   attributesView?.classList.add('hidden');
+  competencesView?.classList.add('hidden');
+  talentsView?.classList.add('hidden');
+  messagesView?.classList.add('hidden');
   heroMission.textContent = 'Inventaire';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
@@ -916,6 +929,9 @@ function openSkillsScreen() {
   inventoryView.classList.add('hidden');
   skillsView?.classList.remove('hidden');
   attributesView?.classList.add('hidden');
+  competencesView?.classList.add('hidden');
+  talentsView?.classList.add('hidden');
+  messagesView?.classList.add('hidden');
   heroMission.textContent = 'Compétences';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
@@ -940,6 +956,9 @@ function openAttributesScreen() {
   inventoryView.classList.add('hidden');
   skillsView?.classList.add('hidden');
   attributesView?.classList.remove('hidden');
+  competencesView?.classList.add('hidden');
+  talentsView?.classList.add('hidden');
+  messagesView?.classList.add('hidden');
   heroMission.textContent = 'Attributs';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
@@ -960,6 +979,7 @@ function openTalentsScreen() {
   attributesView?.classList.add('hidden');
   competencesView?.classList.add('hidden');
   talentsView?.classList.remove('hidden');
+  messagesView?.classList.add('hidden');
   heroMission.textContent = 'Talents';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
@@ -970,6 +990,32 @@ function openTalentsScreen() {
 if (confirmTalentBtn) {
   confirmTalentBtn.addEventListener('click', confirmTalentSelection);
 }
+
+messagesView?.addEventListener('click', async (event) => {
+  const button = event.target.closest('.message-toggle');
+  if (!button) return;
+  const messageId = Number(button.dataset.messageId);
+  if (!messageId) return;
+
+  if (expandedMessageIds.has(messageId)) {
+    expandedMessageIds.delete(messageId);
+  } else {
+    expandedMessageIds.add(messageId);
+    // Marquer le message comme lu quand on l'ouvre pour la première fois
+    const message = currentAgentMessages.find(m => m.id == messageId);
+    if (message && message.is_read !== true) {
+      try {
+        await requestJson(`/api/messages/${messageId}/read`, { method: 'PATCH' });
+        // Mettre à jour localement
+        message.is_read = true;
+      } catch (error) {
+        console.error('Erreur lors du marquage du message comme lu:', error);
+      }
+    }
+  }
+
+  renderMessages(currentAgentMessages);
+});
 
 async function openCompetencesScreen() {
   if (!currentAgent) return;
@@ -988,6 +1034,8 @@ async function openCompetencesScreen() {
     skillsView?.classList.add('hidden');
     attributesView?.classList.add('hidden');
     if (competencesView) competencesView.classList.remove('hidden');
+    talentsView?.classList.add('hidden');
+    messagesView?.classList.add('hidden');
     heroMission.textContent = 'Compétences';
     if (logoutBtn) logoutBtn.classList.remove('hidden');
     if (homeBtn) homeBtn.classList.remove('hidden');
@@ -1375,6 +1423,15 @@ function renderCompetencesScreen() {
     attrDiv.className = 'competence-level';
     attrDiv.dataset.level = '1';
     attrDiv.dataset.key = attrKey;
+    
+    // Calculer les points disponibles pour ce groupe principal
+    // attr est déjà un groupe principal (Conscience, Dextérité, Technique)
+    const availablePoints = calculateAvailablePointsForGroup(attr);
+    
+    // Ajouter la classe si des points sont disponibles
+    if (availablePoints > 0) {
+      attrDiv.classList.add('has-available-points');
+    }
     attrDiv.innerHTML = `
       <div class="competence-header">
         <span class="competence-name">${attr.name || 'Inconnu'}</span>
@@ -1886,6 +1943,12 @@ function renderCompetencesLevel(level, key, parentKeys = []) {
         subAttrDiv.dataset.level = '2';
         subAttrDiv.dataset.key = subAttr.id;
         
+        // Calculer les points disponibles pour cet attribut
+        const availablePoints = calculateAvailablePointsForSkillGroups(subAttr);
+        if (availablePoints > 0) {
+          subAttrDiv.classList.add('has-available-points');
+        }
+        
         // Règles pour les boutons :
         // - Bouton "+" visible si stock de points > 0
         // - Bouton "-" visible si le niveau ACTUEL > niveau de base (enregistré en base)
@@ -2028,6 +2091,14 @@ function renderCompetencesLevel(level, key, parentKeys = []) {
       sgDiv.className = 'competence-level';
       sgDiv.dataset.level = '3';
       sgDiv.dataset.key = sg.id;
+      
+      // Calculer les points disponibles pour ce groupe de compétences
+      const availablePoints = calculateAvailablePointsForSkills(sg);
+      
+      // Ajouter la classe si des points sont disponibles
+      if (availablePoints > 0) {
+        sgDiv.classList.add('has-available-points');
+      }
       
       // Règles pour les boutons :
       // - Bouton "+" visible si stock de points > 0
@@ -2477,9 +2548,100 @@ function openDashboardView() {
   skillsView?.classList.add('hidden');
   attributesView?.classList.add('hidden');
   competencesView?.classList.add('hidden');
+  talentsView?.classList.add('hidden');
+  messagesView?.classList.add('hidden');
   heroMission.textContent = 'Tableau de bord de l’Aventure';
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.add('hidden');
+  
+  // Mettre à jour le compteur de messages non lus au retour au dashboard
+  updateMessagesButtonLabel();
+}
+
+// Mettre à jour le libellé du bouton Messages avec le nombre de messages non lus
+function updateMessagesButtonLabel() {
+  if (!messagesBtn || !currentAgentMessages) return;
+  
+  const unreadCount = currentAgentMessages.filter(m => m.is_read !== true).length;
+  
+  if (unreadCount > 0) {
+    messagesBtn.textContent = `Messages (${unreadCount})`;
+  } else {
+    messagesBtn.textContent = 'Messages';
+  }
+}
+
+function getMessagePreview(message) {
+  const value = String(message?.value || '').replace(/\s+/g, ' ').trim();
+  return value.length > 100 ? `${value.slice(0, 100)}…` : value;
+}
+
+function renderMessages(messages) {
+  currentAgentMessages = Array.isArray(messages) ? messages : [];
+  if (!messagesList) return;
+  
+  // Mettre à jour le compteur de messages non lus sur le bouton
+  updateMessagesButtonLabel();
+
+  if (!currentAgentMessages.length) {
+    messagesList.innerHTML = '<div class="messages-empty">Aucun message pour le moment.</div>';
+    return;
+  }
+
+  messagesList.innerHTML = currentAgentMessages.map((message) => {
+    const isExpanded = expandedMessageIds.has(message.id);
+    const preview = sanitizeText(getMessagePreview(message) || 'Aucun contenu.');
+    const fullContent = sanitizeText(String(message.value || '')).replace(/\n/g, '<br>');
+    const isUnread = !message.is_read;
+
+    return `
+      <div class="message-card ${isUnread ? 'unread' : ''}">
+        <button type="button" class="message-toggle" data-message-id="${message.id}">
+          <span class="message-title">${isUnread ? '📩 Nouveau message' : '✅ Message lu'}</span>
+          <span class="message-preview">${preview}</span>
+        </button>
+        <div class="message-body ${isExpanded ? 'expanded' : 'collapsed'}">${isExpanded ? fullContent : ''}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadMessagesForCurrentAgent() {
+  if (!currentAgent?.id) return [];
+
+  try {
+    const result = await requestJson(`/api/messages/${currentAgent.id}`);
+    const messages = Array.isArray(result?.messages) ? result.messages : [];
+    const sortedMessages = messages.sort((a, b) => Number(b.id) - Number(a.id));
+    // Mettre à jour les messages courants et le libellé du bouton
+    currentAgentMessages = sortedMessages;
+    updateMessagesButtonLabel();
+    return sortedMessages;
+  } catch (error) {
+    console.error('Erreur lors du chargement des messages:', error);
+    showToast('Impossible de charger vos messages.');
+    return [];
+  }
+}
+
+async function openMessagesScreen() {
+  if (!currentAgent) return;
+
+  expandedMessageIds = new Set();
+  dashboardView.classList.add('hidden');
+  inventoryView.classList.add('hidden');
+  skillsView?.classList.add('hidden');
+  attributesView?.classList.add('hidden');
+  competencesView?.classList.add('hidden');
+  talentsView?.classList.add('hidden');
+  messagesView?.classList.remove('hidden');
+  heroMission.textContent = 'Messages';
+  if (logoutBtn) logoutBtn.classList.remove('hidden');
+  if (homeBtn) homeBtn.classList.remove('hidden');
+
+  renderMessages([]);
+  const messages = await loadMessagesForCurrentAgent();
+  renderMessages(messages);
 }
 
 function openDeleteItem(index) {
@@ -2978,6 +3140,7 @@ if (skillsBtn) skillsBtn.addEventListener('click', openSkillsScreen);
 if (attributesBtn) attributesBtn.addEventListener('click', openAttributesScreen);
 if (competencesBtn) competencesBtn.addEventListener('click', openCompetencesScreen);
 if (talentsBtn) talentsBtn.addEventListener('click', openTalentsScreen);
+if (messagesBtn) messagesBtn.addEventListener('click', openMessagesScreen);
 if (saveSkillsBtn) saveSkillsBtn.addEventListener('click', saveSkillsAllocation);
 if (saveAttributesBtn) saveAttributesBtn.addEventListener('click', saveAttributesAllocation);
 // ❌ Supprimé : if (saveCompetencesBtn) saveCompetencesBtn.addEventListener('click', saveCompetencesAllocation);

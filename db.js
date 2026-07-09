@@ -873,6 +873,17 @@ async function initializeDatabase() {
     );
   `);
 
+  // Table pour les messages envoyés aux agents
+  db.run(`
+    CREATE TABLE IF NOT EXISTS agent_messages (
+      id INTEGER PRIMARY KEY,
+      agent_id INTEGER NOT NULL,
+      value TEXT,
+      is_read BOOLEAN DEFAULT FALSE,
+      FOREIGN KEY(agent_id) REFERENCES agents(id) ON DELETE CASCADE
+    );
+  `);
+
   // ============ STATS DATABASE SCHEMA ============
 
   db.run(`
@@ -1447,6 +1458,84 @@ async function setAgentTalentsAsync(agentId, talentIds) {
   setAgentTalents(agentId, talentIds);
 }
 
+// ============ MESSAGES ============
+
+// Créer un message pour un agent
+function createMessage(agent_id, value) {
+  const stmt = db.prepare('INSERT INTO agent_messages (agent_id, value, is_read) VALUES (?, ?, FALSE)');
+  stmt.bind([agent_id, value]);
+  const result = stmt.run();
+  stmt.free();
+  saveDatabase();
+  return result;
+}
+
+// Récupérer tous les messages d'un agent
+function getMessagesByAgentId(agentId) {
+  const rows = all('SELECT * FROM agent_messages WHERE agent_id = ? ORDER BY id DESC', [agentId]);
+  return rows.map(row => ({
+    id: row.id,
+    agent_id: row.agent_id,
+    value: row.value,
+    is_read: row.is_read !== undefined ? Boolean(row.is_read) : false
+  }));
+}
+
+// Supprimer un message par son ID
+function deleteMessage(id) {
+  run('DELETE FROM agent_messages WHERE id = ?', [id]);
+}
+
+// Supprimer tous les messages d'un agent (pour la suppression en cascade)
+function deleteMessagesByAgentId(agentId) {
+  run('DELETE FROM agent_messages WHERE agent_id = ?', [agentId]);
+}
+
+// Marquer un message comme lu
+function markMessageAsRead(id) {
+  // Vérifier que la colonne is_read existe, sinon l'ajouter
+  try {
+    const columns = db.exec('PRAGMA table_info(agent_messages)');
+    if (columns && columns[0] && columns[0].values) {
+      const columnNames = columns[0].values.map(col => col[1]);
+      if (!columnNames.includes('is_read')) {
+        db.run('ALTER TABLE agent_messages ADD COLUMN is_read BOOLEAN DEFAULT FALSE');
+        console.log('⚠ Colonne is_read créée à la volée dans markMessageAsRead');
+      }
+    }
+  } catch (e) {
+    console.warn('Vérification de la colonne is_read échouée:', e.message);
+  }
+  
+  run('UPDATE agent_messages SET is_read = TRUE WHERE id = ?', [id]);
+}
+
+// Versions asynchrones
+async function createMessageAsync(agent_id, value) {
+  await ensureReady();
+  return createMessage(agent_id, value);
+}
+
+async function getMessagesByAgentIdAsync(agentId) {
+  await ensureReady();
+  return getMessagesByAgentId(agentId);
+}
+
+async function deleteMessageAsync(id) {
+  await ensureReady();
+  deleteMessage(id);
+}
+
+async function deleteMessagesByAgentIdAsync(agentId) {
+  await ensureReady();
+  deleteMessagesByAgentId(agentId);
+}
+
+async function markMessageAsReadAsync(id) {
+  await ensureReady();
+  markMessageAsRead(id);
+}
+
 
 module.exports = {
   getAllAgents: getAllAgentsAsync,
@@ -1486,10 +1575,40 @@ module.exports = {
   addAgentTalent: addAgentTalentAsync,
   removeAgentTalent: removeAgentTalentAsync,
   setAgentTalents: setAgentTalentsAsync,
+  // Messages
+  createMessage: createMessageAsync,
+  getMessagesByAgentId: getMessagesByAgentIdAsync,
+  deleteMessage: deleteMessageAsync,
+  deleteMessagesByAgentId: deleteMessagesByAgentIdAsync,
+  markMessageAsRead: markMessageAsReadAsync,
 };
+
+// Migration pour ajouter la colonne is_read à agent_messages
+async function migrateAgentMessagesIsRead() {
+  try {
+    const columns = db.exec('PRAGMA table_info(agent_messages)');
+    if (!columns || !columns.length || !columns[0] || !columns[0].values) {
+      console.warn('Table agent_messages introuvable, recréation...');
+      return;
+    }
+    const columnNames = columns[0].values.map(col => col[1]);
+    
+    if (!columnNames.includes('is_read')) {
+      db.run('ALTER TABLE agent_messages ADD COLUMN is_read BOOLEAN DEFAULT FALSE');
+      console.log('✓ Colonne is_read ajoutée à agent_messages');
+    } else {
+      console.log('✓ Colonne is_read existe déjà dans agent_messages');
+    }
+  } catch (e) {
+    console.warn('Impossible de migrer la colonne is_read:', e.message);
+  }
+}
 
 // Exécuter la migration des noms des groupes d'attributs au démarrage
 migrateAttributeGroupNames().catch(e => console.warn('Migration des groupes d\'attributs échouée:', e.message));
 
 // Exécuter la migration du renommage de la table agent_attributes_values au démarrage
 migrateAgentAttributesValuesTable().catch(e => console.warn('Migration de la table agent_attributes_values échouée:', e.message));
+
+// Exécuter la migration pour ajouter is_read à agent_messages
+migrateAgentMessagesIsRead().catch(e => console.warn('Migration de la colonne is_read échouée:', e.message));

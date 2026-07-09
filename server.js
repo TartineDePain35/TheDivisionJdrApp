@@ -262,6 +262,109 @@ app.get('/admin/agent/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin-agent-edit.html'));
 });
 
+// ============ MESSAGES ENDPOINTS ============
+
+// POST /api/messages - Envoyer un message à un agent
+app.post('/api/messages', async (req, res) => {
+  try {
+    const { agent_id, value } = req.body;
+    
+    if (!agent_id || typeof agent_id !== 'number' || !value || typeof value !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'agent_id et value sont requis et doivent être valides.' 
+      });
+    }
+
+    // Vérifier que l'agent existe
+    const agent = await db.getAgentById(agent_id);
+    if (!agent) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Agent non trouvé.' 
+      });
+    }
+
+    await db.createMessage(agent_id, value);
+    res.json({ success: true, message: 'Message envoyé avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi du message:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// GET /api/messages/:agentId - Récupérer les messages d'un agent
+app.get('/api/messages/:agentId', async (req, res) => {
+  try {
+    const agentId = Number(req.params.agentId);
+    
+    if (!agentId || isNaN(agentId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant agent invalide.' 
+      });
+    }
+
+    const messages = await db.getMessagesByAgentId(agentId);
+    res.json({ success: true, messages });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des messages:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// DELETE /api/messages/:id - Supprimer un message
+app.delete('/api/messages/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant message invalide.' 
+      });
+    }
+
+    await db.deleteMessage(id);
+    res.json({ success: true, message: 'Message supprimé avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors de la suppression du message:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// PATCH /api/messages/:id/read - Marquer un message comme lu
+app.patch('/api/messages/:id/read', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant message invalide.' 
+      });
+    }
+
+    await db.markMessageAsRead(id);
+    res.json({ success: true, message: 'Message marqué comme lu.' });
+  } catch (error) {
+    console.error('Erreur lors du marquage du message comme lu:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
 // Middleware global pour attraper les erreurs non gérées
 app.use((err, req, res, next) => {
   console.error('Erreur non gérée:', err);
