@@ -159,12 +159,50 @@ export function calculateAvailablePointsForSkillGroups(parentAttribute) {
 }
 
 /**
+ * Calcule le stock de points disponibles pour les groupes de compétences en tenant compte des modifications
+ * @param {Object} parentAttribute - Attribut parent
+ * @returns {number} - Points disponibles
+ */
+export function calculateAvailablePointsForSkillGroupsWithModifications(parentAttribute) {
+  const attributeId = parentAttribute.id;
+  const attributeValue = attributeModifications[attributeId] !== undefined
+    ? attributeModifications[attributeId]
+    : (parentAttribute.value || 0);
+  let sum = 0;
+  (parentAttribute.skillGroups || []).forEach(sg => {
+    const sgId = sg.id;
+    const currentModification = skillGroupModifications[sgId];
+    sum += currentModification !== undefined ? currentModification : (sg.value || 0);
+  });
+  return attributeValue - sum;
+}
+
+/**
  * Calcule le stock de points disponibles pour les compétences
  * @param {Object} parentSkillGroup - Groupe de compétences parent
  * @returns {number} - Points disponibles
  */
 export function calculateAvailablePointsForSkills(parentSkillGroup) {
   const skillGroupValue = parentSkillGroup.value || 0;
+  let sum = 0;
+  (parentSkillGroup.skills || []).forEach(skill => {
+    const skillId = skill.id;
+    const currentModification = skillModifications[skillId];
+    sum += currentModification !== undefined ? currentModification : (skill.value || 0);
+  });
+  return skillGroupValue - sum;
+}
+
+/**
+ * Calcule le stock de points disponibles pour les compétences en tenant compte des modifications
+ * @param {Object} parentSkillGroup - Groupe de compétences parent
+ * @returns {number} - Points disponibles
+ */
+export function calculateAvailablePointsForSkillsWithModifications(parentSkillGroup) {
+  const skillGroupId = parentSkillGroup.id;
+  const skillGroupValue = skillGroupModifications[skillGroupId] !== undefined
+    ? skillGroupModifications[skillGroupId]
+    : (parentSkillGroup.value || 0);
   let sum = 0;
   (parentSkillGroup.skills || []).forEach(skill => {
     const skillId = skill.id;
@@ -278,7 +316,9 @@ export function handleSkillGroupValueChange(skillGroupId, change, parentAttribut
   // Ne pas descendre en dessous de 0
   if (newValue < 0) newValue = 0;
   
-  const attributeValue = parentAttribute.value || 0;
+  const attributeValue = attributeModifications[attributeId] !== undefined
+    ? attributeModifications[attributeId]
+    : (parentAttribute.value || 0);
   
   // Calculer la somme totale avec la nouvelle valeur
   let totalSum = 0;
@@ -303,7 +343,7 @@ export function handleSkillGroupValueChange(skillGroupId, change, parentAttribut
   skillGroupModifications[skillGroupId] = newValue;
   
   // Recalculer le stock disponible
-  currentSkillGroupAvailablePoints = calculateAvailablePointsForSkillGroups(parentAttribute);
+  currentSkillGroupAvailablePoints = calculateAvailablePointsForSkillGroupsWithModifications(parentAttribute);
   
   // Mettre à jour l'affichage du stock
   const reserveCountElement = document.getElementById('skillGroupReserveCount');
@@ -339,7 +379,9 @@ export function handleSkillValueChange(skillId, change, parentSkillGroup, skillG
   // Ne pas descendre en dessous de 0
   if (newValue < 0) newValue = 0;
   
-  const skillGroupValue = parentSkillGroup.value || 0;
+  const skillGroupValue = skillGroupModifications[skillGroupId] !== undefined
+    ? skillGroupModifications[skillGroupId]
+    : (parentSkillGroup.value || 0);
   
   // Calculer la somme totale avec la nouvelle valeur
   let totalSum = 0;
@@ -364,7 +406,7 @@ export function handleSkillValueChange(skillId, change, parentSkillGroup, skillG
   skillModifications[skillId] = newValue;
   
   // Recalculer le stock disponible
-  currentSkillAvailablePoints = calculateAvailablePointsForSkills(parentSkillGroup);
+  currentSkillAvailablePoints = calculateAvailablePointsForSkillsWithModifications(parentSkillGroup);
   
   // Mettre à jour l'affichage du stock
   const reserveCountElement = document.getElementById('skillReserveCount');
@@ -804,6 +846,8 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
     if (Object.keys(attributeBaseValues).length === 0 || currentAttributeGroup !== groupKey) {
       attributeBaseValues = {};
       attributeModifications = {};
+      skillGroupModifications = {};
+      skillModifications = {};
       (group.attributes || []).forEach(attr => {
         attributeBaseValues[attr.id] = attr.value || 0;
       });
@@ -834,8 +878,14 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
       subAttrDiv.dataset.key = subAttr.id;
       
       // Calculer les points disponibles pour cet attribut
-      const availablePoints = calculateAvailablePointsForSkillGroups(subAttr);
-      if (availablePoints > 0) {
+      const availablePoints = calculateAvailablePointsForSkillGroupsWithModifications(subAttr);
+      
+      // Vérifier aussi si un des groupes de compétences enfants a des points disponibles
+      const hasChildAvailablePoints = (subAttr.skillGroups || []).some(sg =>
+        calculateAvailablePointsForSkillsWithModifications(sg) > 0
+      );
+      
+      if (availablePoints > 0 || hasChildAvailablePoints) {
         subAttrDiv.classList.add('has-available-points');
       }
       
@@ -936,13 +986,14 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
     if (Object.keys(skillGroupBaseValues).length === 0 || currentAttributeGroup !== attributeKey) {
       skillGroupBaseValues = {};
       skillGroupModifications = {};
+      skillModifications = {};
       (parentAttribute.skillGroups || []).forEach(sg => {
         skillGroupBaseValues[sg.id] = sg.value || 0;
       });
     }
     
     currentAttributeGroup = attributeKey;
-    currentSkillGroupAvailablePoints = calculateAvailablePointsForSkillGroups(parentAttribute);
+    currentSkillGroupAvailablePoints = calculateAvailablePointsForSkillGroupsWithModifications(parentAttribute);
     
     // Afficher le stock de points disponibles
     const reserveDiv = document.createElement('div');
@@ -966,7 +1017,7 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
       sgDiv.dataset.key = sg.id;
       
       // Calculer les points disponibles pour ce groupe
-      const availablePoints = calculateAvailablePointsForSkills(sg);
+      const availablePoints = calculateAvailablePointsForSkillsWithModifications(sg);
       if (availablePoints > 0) {
         sgDiv.classList.add('has-available-points');
       }
@@ -1078,7 +1129,7 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
     }
     
     currentAttributeGroup = skillGroupKey;
-    currentSkillAvailablePoints = calculateAvailablePointsForSkills(parentSkillGroup);
+    currentSkillAvailablePoints = calculateAvailablePointsForSkillsWithModifications(parentSkillGroup);
     
     // Afficher le stock de points disponibles
     const reserveDiv = document.createElement('div');

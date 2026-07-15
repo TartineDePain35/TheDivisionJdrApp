@@ -165,11 +165,7 @@ function renderAgentEffects(agent) {
   if (!agentEffects) return;
   
   agentEffects.innerHTML = '';
-  const rawEffects = [ 
-    ...(agent.assignedEffects || []), 
-    ...(agent.wounds || []), 
-    ...(agent.effects || []) 
-  ].filter(Boolean);
+  const rawEffects = [ ...(agent.assignedEffects || []) ].filter(Boolean);
 
   if (rawEffects.length) {
     const normalized = rawEffects.map((item) => {
@@ -183,12 +179,13 @@ function renderAgentEffects(agent) {
         };
       }
       const name = item.name || item.type || '';
+      const icon = item.icon || getEffectIcon(name);
       return {
         name,
-        type: item.type,
-        description: item.description,
-        duration: item.duration,
-        icon: getEffectIcon(name),
+        type: item.type || '',
+        description: item.description || '',
+        duration: item.duration || '',
+        icon: icon || getEffectIcon(name),
       };
     });
 
@@ -204,7 +201,9 @@ function renderAgentEffects(agent) {
 
       const icon = document.createElement('span');
       icon.className = 'effect-tile-icon';
-      icon.textContent = effect.icon;
+      // Assurer que l'icône est toujours définie avec un fallback
+      const effectName = effect.name || effect.type || '';
+      icon.textContent = effect.icon || (effectName ? getEffectIcon(effectName) : '⚠️') || '⚠️';
       
       const label = document.createElement('span');
       label.className = 'effect-tile-label';
@@ -226,7 +225,10 @@ function renderAgentEffects(agent) {
  * @param {Object} effect - Effet à afficher
  */
 export function openEffectDetails(effect) {
-  if (!effect || !itemDetailsContent) return;
+  if (!effect || !itemDetailsContent || !itemDetailsModal) {
+    console.warn('Cannot open effect details: missing required elements');
+    return;
+  }
 
   itemDetailsContent.innerHTML = `
     <div class="item-detail-card">

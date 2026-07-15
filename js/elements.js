@@ -65,6 +65,7 @@ export const dashboardView = document.getElementById('dashboardView');
 export const inventoryView = document.getElementById('inventoryView');
 export const skillsView = document.getElementById('skillsView');
 export const attributesView = document.getElementById('attributesView');
+export const competencesView = document.getElementById('competencesView');
 export const talentsView = document.getElementById('talentsView');
 export const messagesView = document.getElementById('messagesView');
 

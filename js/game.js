@@ -53,8 +53,6 @@ import {
   chooseTalentBtn,
   talentPrev,
   talentNext,
-  talentTitle,
-  talentDescription,
   talentCard,
   inventoryBtn,
   skillsBtn,
@@ -361,8 +359,18 @@ export async function loadTalents() {
  * Rendu du talent courant dans le wizard
  */
 function renderTalent() {
-  if (!talentTitle || !talentDescription) return;
+  console.log('renderTalent() appelé - talentIndex:', talentIndex, 'talents.length:', talents.length, 'selectedTalent:', selectedTalent);
+  
+  // Obtenir les éléments directement pour éviter les problèmes de timing des modules
+  const talentTitle = document.getElementById('talentTitle');
+  const talentDescription = document.getElementById('talentDescription');
+  
+  if (!talentTitle || !talentDescription) {
+    console.log('Erreur: talentTitle ou talentDescription non trouvé dans le DOM');
+    return;
+  }
   const talent = talents[talentIndex] || selectedTalent;
+  console.log('Talent à afficher:', talent);
   if (!talent) {
     talentTitle.textContent = 'Chargement des talents...';
     talentDescription.textContent = 'Veuillez patienter pendant le chargement des talents.';
@@ -390,7 +398,7 @@ export function chooseTalent() {
   const talent = talents[talentIndex];
   if (!talent || talent.id === null || talent.id === undefined) return;
   selectedTalent = talent;
-  talentIdSelected = Number(talent.id);
+  talentIdSelected = String(talent.id);
   showWizardStep(6);
 }
 
@@ -417,7 +425,7 @@ export function getWizardData() {
       dexterity: attributeValues.dexterity,
       technique: attributeValues.technique,
     },
-    talents: selectedTalent ? [{...selectedTalent, id: Number(selectedTalent.id)}] : [],
+    talents: selectedTalent ? [{...selectedTalent, id: String(selectedTalent.id)}] : [],
     story: agentInputs.story.value.trim(),
     password: agentInputs.password.value,
   };
@@ -1091,7 +1099,7 @@ export function closeItemDetails() {
 export function selectAvailableTalent(talent, tile) {
   if (!talent || !talent.id) return;
 
-  if (selectedAgentTalentId === Number(talent.id)) {
+  if (selectedAgentTalentId === String(talent.id)) {
     if (selectedAgentTalentTile) {
       selectedAgentTalentTile.classList.remove('selected');
     }
@@ -1103,7 +1111,7 @@ export function selectAvailableTalent(talent, tile) {
       selectedAgentTalentTile.classList.remove('selected');
     }
     selectedAgentTalent = talent;
-    selectedAgentTalentId = Number(talent.id);
+    selectedAgentTalentId = String(talent.id);
     selectedAgentTalentTile = tile;
     tile.classList.add('selected');
   }
@@ -1127,8 +1135,8 @@ export async function confirmTalentSelection() {
   currentAgent.availableTalentPoints = Math.max(0, Number(currentAgent.availableTalentPoints ?? 0) - 1);
   currentAgent.availableStatsPoints = Math.max(0, Number(currentAgent.availableStatsPoints ?? 0) - 1);
   currentAgent.talents = Array.isArray(currentAgent.talents)
-    ? [...currentAgent.talents, { ...selectedAgentTalent, id: Number(selectedAgentTalentId) }]
-    : [{ ...selectedAgentTalent, id: Number(selectedAgentTalentId) }];
+    ? [...currentAgent.talents, { ...selectedAgentTalent, id: String(selectedAgentTalentId) }]
+    : [{ ...selectedAgentTalent, id: String(selectedAgentTalentId) }];
 
   // Re-rendre l'agent pour mettre à jour les points
   const { renderAgent } = await import('./ui.js');

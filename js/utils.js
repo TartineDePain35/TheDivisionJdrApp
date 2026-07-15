@@ -117,6 +117,7 @@ import { EFFECT_ICONS } from './config.js';
  * @returns {string} Icône correspondante
  */
 export function getEffectIcon(effect) {
+  if (!effect) return '⚠️';
   return EFFECT_ICONS[effect.toLowerCase()] || '⚠️';
 }
 
