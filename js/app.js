@@ -1,106 +1,136 @@
-const sections = {
-  landing: document.getElementById('landing'),
-  createAgent: document.getElementById('createAgent'),
-  mainPage: document.getElementById('mainPage'),
-  competences: document.getElementById('competencesView'),
-};
-const loginForm = document.getElementById('loginForm');
-const createAgentBtn = document.getElementById('createAgentBtn');
-const logoutBtn = document.getElementById('logoutBtn');
-const homeBtn = document.getElementById('homeBtn');
-const brandTag = document.getElementById('brandTag');
-const heroName = document.getElementById('heroName');
-const heroLife = document.getElementById('heroLife');
-const heroStatsPoints = document.getElementById('heroStatsPoints');
-const heroAttrPoints = document.getElementById('heroAttrPoints');
-const heroTalentPoint = document.getElementById('heroTalentPoint');
-const heroMission = document.getElementById('heroMission');
-const missionDescription = document.getElementById('missionDescription');
-const agentEffects = document.getElementById('agentEffects');
-const toast = document.getElementById('toast');
-const createAgentModal = document.getElementById('createAgentModal');
-const activateAgentBtn = document.getElementById('activateAgentBtn');
-const dashboardView = document.getElementById('dashboardView');
-const inventoryView = document.getElementById('inventoryView');
-const skillsView = document.getElementById('skillsView');
-const attributesView = document.getElementById('attributesView');
-const inventoryBtn = document.getElementById('inventoryBtn');
-const skillsBtn = document.getElementById('skillsBtn');
-const attributesBtn = document.getElementById('attributesBtn');
-const competencesBtn = document.getElementById('competencesBtn');
-const talentsBtn = document.getElementById('talentsBtn');
-const messagesBtn = document.getElementById('messagesBtn');
-const talentsView = document.getElementById('talentsView');
-const messagesView = document.getElementById('messagesView');
-const talentsContainer = document.getElementById('talentsContainer');
-const messagesList = document.getElementById('messagesList');
-const talentsAvailableContainer = document.getElementById('talentsAvailableContainer');
-const confirmTalentBtn = document.getElementById('confirmTalentBtn');
-const inventoryList = document.getElementById('inventoryList');
-const inventoryCapacityLabel = document.getElementById('inventoryCapacity');
-const inventoryWeight = document.getElementById('inventoryWeight');
-const inventoryFill = document.getElementById('inventoryFill');
-const addInventoryItemBtn = document.getElementById('addInventoryItemBtn');
-const saveSkillsBtn = document.getElementById('saveSkillsBtn');
-const saveAttributesBtn = document.getElementById('saveAttributesBtn');
-const saveCompetencesBtn = document.getElementById('saveCompetencesBtn');
-const competencesContainer = document.getElementById('competencesContainer');
-const competenceDescModal = document.getElementById('competenceDescModal');
-const closeCompetenceDescBtn = document.getElementById('closeCompetenceDescBtn');
-const competenceDescContent = document.getElementById('competenceDescContent');
-const skillsReserveCount = document.getElementById('skillsReserveCount');
-const attributesReserveCount = document.getElementById('attributesReserveCount');
-const deleteItemModal = document.getElementById('deleteItemModal');
-const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
-const itemDetailsModal = document.getElementById('itemDetailsModal');
-const closeItemDetailsBtn = document.getElementById('closeItemDetailsBtn');
-const addItemModal = document.getElementById('addItemModal');
-const closeAddItemModalBtn = document.getElementById('closeAddItemModalBtn');
-const itemDetailsContent = document.getElementById('itemDetailsContent');
-const addItemTypeSelect = document.getElementById('addItemTypeSelect');
-const weaponTypeSelect = document.getElementById('weaponTypeSelect');
-const weaponCategorySelect = document.getElementById('weaponCategorySelect');
-const weaponClassSelect = document.getElementById('weaponClassSelect');
-const weaponNameSelect = document.getElementById('weaponNameSelect');
-const confirmAddInventoryItemBtn = document.getElementById('confirmAddInventoryItemBtn');
-const weaponSelectorSection = document.getElementById('weaponSelectorSection');
-const medicalTypeSelect = document.getElementById('medicalTypeSelect');
-const medicalCategorySelect = document.getElementById('medicalCategorySelect');
-const medicalNameSelect = document.getElementById('medicalNameSelect');
-const medicalSelectorSection = document.getElementById('medicalSelectorSection');
-const equipmentTypeSelect = document.getElementById('equipmentTypeSelect');
-const equipmentCategorySelect = document.getElementById('equipmentCategorySelect');
-const equipmentNameSelect = document.getElementById('equipmentNameSelect');
-const equipmentSelectorSection = document.getElementById('equipmentSelectorSection');
-const otherItemName = document.getElementById('otherItemName');
-const otherItemDescription = document.getElementById('otherItemDescription');
-const otherItemWeight = document.getElementById('otherItemWeight');
-const otherSelectorSection = document.getElementById('otherSelectorSection');
+/**
+ * Point d'entrée principal de l'application
+ * Ce fichier importe les modules et contient la logique métier
+ */
 
-const wizardStepNav = document.getElementById('wizardStepNav');
-const wizardContent = document.getElementById('wizardContent');
-const wizardBreadcrumb = document.getElementById('wizardBreadcrumb');
-const wizardBack = document.getElementById('wizardBack');
-const wizardNext = document.getElementById('wizardNext');
-const chooseTalentBtn = document.getElementById('chooseTalentBtn');
-const talentPrev = document.getElementById('talentPrev');
-const talentNext = document.getElementById('talentNext');
-const talentTitle = document.getElementById('talentTitle');
-const talentDescription = document.getElementById('talentDescription');
-const talentCard = document.getElementById('talentCard');
-const storyCount = document.getElementById('storyCount');
-const agentInputs = {
-  lastName: document.getElementById('agentLastName'),
-  firstName: document.getElementById('agentFirstName'),
-  age: document.getElementById('agentAge'),
-  sex: document.getElementById('agentSex'),
-  profession: document.getElementById('agentProfession'),
-  familyStatus: document.getElementById('agentFamilyStatus'),
-  children: document.getElementById('agentChildren'),
-  story: document.getElementById('agentStory'),
-  password: document.getElementById('agentWizardPassword'),
-};
+// ============================================================================
+// IMPORTS - Configuration
+// ============================================================================
+import {
+  EFFECT_ICONS,
+  STORAGE_KEY,
+  SESSION_KEY,
+  API_AGENTS_PATH,
+  DEFAULT_ATTRIBUTE_VALUES,
+  DEFAULT_RESERVE_VALUES,
+} from './config.js';
+
+// ============================================================================
+// IMPORTS - Éléments DOM
+// ============================================================================
+import {
+  sections,
+  loginForm,
+  createAgentBtn,
+  logoutBtn,
+  homeBtn,
+  brandTag,
+  heroName,
+  heroLife,
+  heroStatsPoints,
+  heroAttrPoints,
+  heroTalentPoint,
+  heroMission,
+  missionDescription,
+  agentEffects,
+  toast,
+  createAgentModal,
+  activateAgentBtn,
+  dashboardView,
+  inventoryView,
+  skillsView,
+  attributesView,
+  inventoryBtn,
+  skillsBtn,
+  attributesBtn,
+  competencesBtn,
+  talentsBtn,
+  messagesBtn,
+  talentsView,
+  messagesView,
+  talentsContainer,
+  messagesList,
+  talentsAvailableContainer,
+  confirmTalentBtn,
+  inventoryList,
+  inventoryCapacityLabel,
+  inventoryWeight,
+  inventoryFill,
+  addInventoryItemBtn,
+  saveSkillsBtn,
+  saveAttributesBtn,
+  saveCompetencesBtn,
+  competencesContainer,
+  competenceDescModal,
+  closeCompetenceDescBtn,
+  competenceDescContent,
+  skillsReserveCount,
+  attributesReserveCount,
+  deleteItemModal,
+  confirmDeleteBtn,
+  cancelDeleteBtn,
+  itemDetailsModal,
+  closeItemDetailsBtn,
+  addItemModal,
+  closeAddItemModalBtn,
+  itemDetailsContent,
+  addItemTypeSelect,
+  weaponTypeSelect,
+  weaponCategorySelect,
+  weaponClassSelect,
+  weaponNameSelect,
+  confirmAddInventoryItemBtn,
+  weaponSelectorSection,
+  medicalTypeSelect,
+  medicalCategorySelect,
+  medicalNameSelect,
+  medicalSelectorSection,
+  equipmentTypeSelect,
+  equipmentCategorySelect,
+  equipmentNameSelect,
+  equipmentSelectorSection,
+  otherItemName,
+  otherItemDescription,
+  otherItemWeight,
+  otherSelectorSection,
+  wizardStepNav,
+  wizardContent,
+  wizardBreadcrumb,
+  wizardBack,
+  wizardNext,
+  chooseTalentBtn,
+  talentPrev,
+  talentNext,
+  talentTitle,
+  talentDescription,
+  talentCard,
+  storyCount,
+  agentInputs,
+} from './elements.js';
+
+// ============================================================================
+// IMPORTS - Utilitaires
+// ============================================================================
+import {
+  scrollToTop,
+  showSection,
+  showToast,
+  showModal,
+  hideModal,
+  sanitizeText,
+  normalizeKey,
+  getEffectIcon,
+  deepMerge,
+  deepClone,
+  isValidNumber,
+  isNonEmptyString,
+  formatNumber,
+  formatWeight,
+} from './utils.js';
+
+// ============================================================================
+// ÉTAT GLOBAL (Variables d'état qui restent dans app.js)
+// ============================================================================
 
 const attributeValues = {
   speed: 1,
@@ -154,45 +184,25 @@ let baseStats = {};
 let baseAttributes = {};
 
 // État pour suivre les modifications dans la vue simple des attributs
-let attributesViewModifications = {}; // {conscience: value, dexterity: value, technique: value}
-let attributesViewInitialValues = {}; // Valeurs initiales au moment de l'ouverture de l'écran
+let attributesViewModifications = {};
+let attributesViewInitialValues = {};
 
 // État pour la redistribution des points au niveau des attributs (niveau 1)
-let currentAttributeGroup = null; // ID du groupe d'attributs sélectionné (ex: Conscience)
-let currentAttributeGroupValue = 0; // Valeur du groupe sélectionné
-let attributeModifications = {}; // {attributeId: newValue} pour les attributs modifiés
-let attributeBaseValues = {}; // {attributeId: baseValue} pour les valeurs de base des attributs
-let currentAvailablePoints = 0; // Stock de points disponibles pour le groupe sélectionné
+let currentAttributeGroup = null;
+let currentAttributeGroupValue = 0;
+let attributeModifications = {};
+let attributeBaseValues = {};
+let currentAvailablePoints = 0;
 
 // Niveau 3 - Groupes de compétences
-let skillGroupModifications = {}; // {skillGroupId: newValue} pour les groupes de compétences modifiés
-let skillGroupBaseValues = {}; // {skillGroupId: baseValue} pour les valeurs de base des groupes de compétences
-let currentSkillGroupAvailablePoints = 0; // Stock de points disponibles pour l'attribut sélectionné
+let skillGroupModifications = {};
+let skillGroupBaseValues = {};
+let currentSkillGroupAvailablePoints = 0;
 
 // Niveau 4 - Compétences
-let skillModifications = {}; // {skillId: newValue} pour les compétences modifiées
-let skillBaseValues = {}; // {skillId: baseValue} pour les valeurs de base des compétences
-let currentSkillAvailablePoints = 0; // Stock de points disponibles pour le groupe de compétences sélectionné
-
-const EFFECT_ICONS = {
-  blessure: '🩸',
-  brulure: '🔥',
-  brûlure: '🔥',
-  froid: '❄️',
-  brouillard: '🌫️',
-  hypothermie: '🧊',
-  inflammation: '🔥',
-  empoisonnement: '☠️',
-  etourdissement: '💫',
-  saignement: '🩸',
-  fatigue: '😴',
-  panique: '😰',
-  gel: '❄️',
-};
-
-const STORAGE_KEY = 'divisionAdventureAgents';
-const SESSION_KEY = 'divisionAdventureSession';
-const API_AGENTS_PATH = '/api/agents';
+let skillModifications = {};
+let skillBaseValues = {};
+let currentSkillAvailablePoints = 0;
 
 function getAgents() {
   return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -217,27 +227,7 @@ function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
-function scrollToTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
 
-function showSection(name) {
-  Object.values(sections).forEach((section) => section.classList.remove('active-page'));
-  sections[name].classList.add('active-page');
-  scrollToTop();
-
-  if (name !== 'mainPage') {
-    if (logoutBtn) logoutBtn.classList.add('hidden');
-    if (homeBtn) homeBtn.classList.add('hidden');
-  }
-}
-
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add('show');
-  window.clearTimeout(showToast.timeout);
-  showToast.timeout = window.setTimeout(() => toast.classList.remove('show'), 2400);
-}
 
 function showAgentCreatedPopup() {
   createAgentModal.classList.add('active');
@@ -310,14 +300,6 @@ function resetBrandTag() {
   if (brandTag) {
     brandTag.textContent = 'Aventure RPG Mobile';
   }
-}
-
-function getEffectIcon(effect) {
-  return EFFECT_ICONS[effect.toLowerCase()] || '⚠️';
-}
-
-function sanitizeText(text) {
-  return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function openEffectDetails(effect) {
@@ -397,18 +379,6 @@ function renderAgent(agent) {
   loadMessagesForCurrentAgent().catch(error => {
     console.error('Erreur lors du chargement initial des messages:', error);
   });
-}
-
-function showModal(modal) {
-  if (modal) {
-    modal.classList.add('active');
-  }
-}
-
-function hideModal(modal) {
-  if (modal) {
-    modal.classList.remove('active');
-  }
 }
 
 function loadWeaponsData() {
@@ -1381,10 +1351,6 @@ async function loadCompetencesData() {
     competencesState = {};
     throw error; // Permet à openCompetencesScreen de gérer l'erreur
   }
-}
-
-function normalizeKey(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/é/gi, 'e').replace(/è/gi, 'e').replace(/ê/gi, 'e');
 }
 
 function showCompetenceDescription(description) {
