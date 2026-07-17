@@ -112,7 +112,7 @@ export function createDefaultAgent(data) {
     children: data.children,
     story: data.story,
     talents: (data.talents && Array.isArray(data.talents)) 
-      ? data.talents.map(t => ({...t, id: String(t.id)})) // Garder comme string pour correspondre aux IDs du JSON
+      ? data.talents.map(t => ({...t})) // Garder l'ID numérique
       : [],
     stats: data.stats || { speed: 1, resilience: 1, vigor: 1 },
     attributes: data.attributes,
@@ -215,8 +215,10 @@ export async function createAgent(agentData) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(agent),
     });
+    console.log('Création agent - résultat du serveur:', result);
     return result.agent || agent;
   } catch (error) {
+    console.log('Création agent - erreur:', error.status, error.message);
     if (error.status === 409) {
       // Agent existe déjà
       throw error;

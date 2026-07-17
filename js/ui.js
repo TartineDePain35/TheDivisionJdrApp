@@ -11,11 +11,12 @@ import { EFFECT_ICONS } from './config.js';
 // ============================================================================
 // IMPORTS - State
 // ============================================================================
-import { currentAgent } from './state.js';
+import { currentAgent, currentAgentMessages, expandedMessageIds, effectsData } from './state.js';
 
 // ============================================================================
 // IMPORTS - Data
 // ============================================================================
+import { loadMessagesForCurrentAgent, loadAllEffects } from './data.js';
 
 // ============================================================================
 // IMPORTS - Competences
@@ -118,6 +119,7 @@ export function closeAgentCreatedPopup() {
  * Réinitialise le brand tag
  */
 export function resetBrandTag() {
+  const brandTag = document.getElementById('brandTag');
   if (brandTag) {
     brandTag.textContent = 'Aventure RPG Mobile';
   }
@@ -131,7 +133,17 @@ export function resetBrandTag() {
  * Rendu de l'agent courant dans l'UI
  * @param {Object} agent - Agent à afficher
  */
-export function renderAgent(agent) {
+export async function renderAgent(agent) {
+  const heroName = document.getElementById('heroName');
+  const heroLife = document.getElementById('heroLife');
+  const heroStatsPoints = document.getElementById('heroStatsPoints');
+  const heroAttrPoints = document.getElementById('heroAttrPoints');
+  const heroTalentPoint = document.getElementById('heroTalentPoint');
+  const heroMission = document.getElementById('heroMission');
+  const missionDescription = document.getElementById('missionDescription');
+  const brandTag = document.getElementById('brandTag');
+  const inventoryCapacityLabel = document.getElementById('inventoryCapacityLabel');
+  
   if (heroName) heroName.textContent = `${agent.firstName} ${agent.name}`;
   if (heroLife) heroLife.textContent = `${agent.lifePercent ?? 100}%`;
   if (heroStatsPoints) heroStatsPoints.textContent = String(agent.availableStatsPoints ?? 0);
@@ -146,8 +158,9 @@ export function renderAgent(agent) {
   }
   
   // Rendu des effets
-  if (agentEffects) {
-    renderAgentEffects(agent);
+  const agentEffectsEl = document.getElementById('agentEffects');
+  if (agentEffectsEl) {
+    await renderAgentEffects(agent);
   }
   
   if (inventoryCapacityLabel) {
@@ -161,39 +174,79 @@ export function renderAgent(agent) {
  * Rendu des effets de l'agent
  * @param {Object} agent - Agent dont les effets doivent être rendus
  */
-function renderAgentEffects(agent) {
-  if (!agentEffects) return;
+async function renderAgentEffects(agent) {
+  const agentEffectsEl = document.getElementById('agentEffects');
+  if (!agentEffectsEl) return;
   
-  agentEffects.innerHTML = '';
-  const rawEffects = [ ...(agent.assignedEffects || []) ].filter(Boolean);
+  agentEffectsEl.innerHTML = '';
+  // Gérer les différentes sources d'effets (assignedEffects, effects, wounds)
+  const rawEffects = [
+    ...(agent.assignedEffects || []),
+    ...(agent.effects || []),
+    ...(agent.wounds || [])
+  ].filter(Boolean);
+  
+  // Debug: afficher la structure des effets bruts
+  if (rawEffects.length > 0) {
+    console.log('Effets bruts de l\'agent (direct):', rawEffects);
+    console.log('Premier effet:', rawEffects[0]);
+    console.log('Premier effet - has name?', 'name' in rawEffects[0], rawEffects[0]?.name);
+    console.log('Premier effet - has type?', 'type' in rawEffects[0], rawEffects[0]?.type);
+  }
 
   if (rawEffects.length) {
-    const normalized = rawEffects.map((item) => {
-      if (typeof item === 'string') {
-        return { 
-          name: item, 
-          icon: getEffectIcon(item), 
-          type: '', 
-          description: '', 
-          duration: '' 
+    // Normalisation simple : s'assurer que chaque effet a toutes les propriétés nécessaires
+    // On fait confiance à rawEffects qui devrait contenir les données complètes de la base
+    const normalized = rawEffects.map((item, index) => {
+      // Si c'est un objet, l'utiliser directement en garantissant les propriétés
+      if (typeof item === 'object' && item !== null) {
+        return {
+          id: item.id,
+          name: item.name || '',
+          type: item.type || '',
+          description: item.description || '',
+          duration: item.duration || '',
+          icon: item.icon || (item.name ? getEffectIcon(item.name) : '⚠️')
         };
       }
-      const name = item.name || item.type || '';
-      const icon = item.icon || getEffectIcon(name);
+      
+      // Si c'est une string, créer un objet basique
+      if (typeof item === 'string') {
+        return {
+          id: null,
+          name: item,
+          type: '',
+          description: '',
+          duration: '',
+          icon: getEffectIcon(item)
+        };
+      }
+      
+      // Si c'est un nombre, créer un objet avec ID
+      if (typeof item === 'number') {
+        return {
+          id: item,
+          name: `Effet #${item}`,
+          type: '',
+          description: '',
+          duration: '',
+          icon: '⚠️'
+        };
+      }
+      
+      // Fallback pour tout autre type
       return {
-        name,
-        type: item.type || '',
-        description: item.description || '',
-        duration: item.duration || '',
-        icon: icon || getEffectIcon(name),
+        id: null,
+        name: `Effet #${index + 1}`,
+        type: '',
+        description: '',
+        duration: '',
+        icon: '⚠️'
       };
     });
-
-    const uniqueEffects = [...new Map(normalized.map((effect) => 
-      [effect.name.trim().toLowerCase(), effect]
-    ).values())];
     
-    uniqueEffects.forEach((effect) => {
+    // Utiliser directement normalized au lieu de uniqueEffects (pas de déduplication pour l'instant)
+    normalized.forEach((effect) => {
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = 'effect-tile';
@@ -201,22 +254,21 @@ function renderAgentEffects(agent) {
 
       const icon = document.createElement('span');
       icon.className = 'effect-tile-icon';
-      // Assurer que l'icône est toujours définie avec un fallback
       const effectName = effect.name || effect.type || '';
       icon.textContent = effect.icon || (effectName ? getEffectIcon(effectName) : '⚠️') || '⚠️';
       
       const label = document.createElement('span');
       label.className = 'effect-tile-label';
-      label.textContent = effect.name;
+      label.textContent = effect.name || effect.type || (effect.id ? `Effet #${effect.id}` : 'Effet inconnu');
       
       tile.append(icon, label);
-      agentEffects.appendChild(tile);
+      agentEffectsEl.appendChild(tile);
     });
   } else {
     const empty = document.createElement('div');
     empty.className = 'effects-empty';
     empty.textContent = 'Aucun effet actif.';
-    agentEffects.appendChild(empty);
+    agentEffectsEl.appendChild(empty);
   }
 }
 
@@ -225,6 +277,9 @@ function renderAgentEffects(agent) {
  * @param {Object} effect - Effet à afficher
  */
 export function openEffectDetails(effect) {
+  const itemDetailsModal = document.getElementById('itemDetailsModal');
+  const itemDetailsContent = document.getElementById('itemDetailsContent');
+  
   if (!effect || !itemDetailsContent || !itemDetailsModal) {
     console.warn('Cannot open effect details: missing required elements');
     return;
@@ -331,6 +386,11 @@ export function openAttributesScreen() {
  * Ouvre l'écran des talents
  */
 export function openTalentsScreen() {
+  if (!currentAgent) {
+    showToast('Aucun agent sélectionné.');
+    return;
+  }
+  
   if (dashboardView) dashboardView.classList.add('hidden');
   if (inventoryView) inventoryView.classList.add('hidden');
   if (skillsView) skillsView?.classList.add('hidden');
@@ -356,7 +416,7 @@ export const openCompetencesScreen = openCompetencesScreenFromCompetences;
 /**
  * Ouvre l'écran des messages
  */
-export function openMessagesScreen() {
+export async function openMessagesScreen() {
   if (dashboardView) dashboardView.classList.add('hidden');
   if (inventoryView) inventoryView.classList.add('hidden');
   if (skillsView) skillsView?.classList.add('hidden');
@@ -371,6 +431,19 @@ export function openMessagesScreen() {
   const homeBtn = document.getElementById('homeBtn');
   if (logoutBtn) logoutBtn.classList.remove('hidden');
   if (homeBtn) homeBtn.classList.remove('hidden');
+  
+  // Réinitialiser les messages dépliés
+  expandedMessageIds.clear();
+  
+  // Charger et afficher les messages
+  try {
+    renderMessages([]);
+    const messages = await loadMessagesForCurrentAgent();
+    renderMessages(messages);
+  } catch (error) {
+    console.error('Erreur lors du chargement des messages:', error);
+    renderMessages([]);
+  }
 }
 
 // ============================================================================
@@ -419,10 +492,15 @@ export function renderInventory(agent) {
  * Met à jour le libellé du bouton Messages
  */
 export function updateMessagesButtonLabel() {
-  if (!messagesBtn) return;
+  if (!messagesBtn || !currentAgentMessages) return;
   
-  // Cette fonction sera appelée avec currentAgentMessages comme paramètre
-  // ou le module game.js devra l'appeler avec les données
+  const unreadCount = currentAgentMessages.filter(m => m.is_read !== true).length;
+  
+  if (unreadCount > 0) {
+    messagesBtn.textContent = `Messages (${unreadCount})`;
+  } else {
+    messagesBtn.textContent = 'Messages';
+  }
 }
 
 /**
@@ -432,12 +510,21 @@ export function updateMessagesButtonLabel() {
 export function renderMessages(messages) {
   if (!messagesList) return;
 
-  if (!messages || !messages.length) {
+  // Mettre à jour currentAgentMessages avec les messages reçus
+  if (Array.isArray(messages)) {
+    currentAgentMessages.length = 0;
+    currentAgentMessages.push(...messages);
+  }
+
+  // Mettre à jour le libellé du bouton Messages
+  updateMessagesButtonLabel();
+
+  if (!currentAgentMessages || !currentAgentMessages.length) {
     messagesList.innerHTML = '<div class="messages-empty">Aucun message pour le moment.</div>';
     return;
   }
 
-  messagesList.innerHTML = messages.map((message) => {
+  messagesList.innerHTML = currentAgentMessages.map((message) => {
     const isExpanded = message.expanded || false;
     const fullContent = sanitizeText(String(message.value || '')).replace(/\n/g, '<br>');
     const isUnread = !message.is_read;

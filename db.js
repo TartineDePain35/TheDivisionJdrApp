@@ -16,8 +16,13 @@ function ensureDataDir() {
 
 function saveDatabase() {
   if (!db) return;
-  const data = db.export();
-  fs.writeFileSync(dbPath, Buffer.from(data));
+  try {
+    const data = db.export();
+    fs.writeFileSync(dbPath, Buffer.from(data));
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la base de données:', error);
+    // Ne pas propager l'erreur pour éviter de bloquer l'exécution
+  }
 }
 
 function parseJsonValue(value) {
@@ -158,8 +163,8 @@ function clearAgentEffects(agentId) {
   run('DELETE FROM agent_effects_value WHERE agentId = ?', [agentId]);
 }
 
-function assignEffectsToAgent(agentId, effectIds) {
-  if (!Array.isArray(effectIds) || effectIds.length === 0) {
+function assignEffectsToAgent(agentId, effectItems) {
+  if (!Array.isArray(effectItems) || effectItems.length === 0) {
     return;
   }
 
@@ -167,9 +172,16 @@ function assignEffectsToAgent(agentId, effectIds) {
     'INSERT OR IGNORE INTO agent_effects_value (agentId, effectId) VALUES (?, ?)'
   );
 
-  for (const effectId of effectIds) {
-    stmt.bind([agentId, effectId]);
-    stmt.run();
+  for (const item of effectItems) {
+    // Support both: plain IDs (numbers/strings) or effect objects with id property
+    const effectId = typeof item === 'object' && item !== null && item.id !== undefined 
+      ? Number(item.id) 
+      : Number(item);
+    
+    if (!isNaN(effectId)) {
+      stmt.bind([agentId, effectId]);
+      stmt.run();
+    }
   }
 
   stmt.free();
@@ -321,12 +333,14 @@ function loadTalentsFromJson() {
     // Vider la table avant de charger les nouveaux talents
     run('DELETE FROM talents');
     
+    // Insérer les talents avec des IDs séquentiels (1, 2, 3, ...)
     const insertStmt = db.prepare(
       'INSERT INTO talents (id, title, description) VALUES (?, ?, ?)'
     );
-    for (const talent of Array.isArray(talents) ? talents : []) {
+    for (let i = 0; i < talents.length; i++) {
+      const talent = talents[i];
       insertStmt.bind([
-        talent.id || '',
+        i + 1,  // ID séquentiel commençant à 1
         talent.title || '',
         talent.description || '',
       ]);
@@ -351,17 +365,12 @@ function insertDefaultTalents() {
     return;
   }
 
+  // Talents par défaut basés sur le fichier JSON
   const defaultTalents = [
-    { id: 'tireur_delite', title: 'Tireur d\'élite', description: 'Maîtrise exceptionnelle des armes à feu. Bonus de précision et de dégâts avec les armes.' },
-    { id: 'medecin_combat', title: 'Médecin de combat', description: 'Compétences médicales avancées. Peut soigner les blessures plus efficacement.' },
-    { id: 'ingenieur_tactique', title: 'Ingénieur tactique', description: 'Expert en technologie et réparation d\'équipements. Bonus avec les objets techniques.' },
-    { id: 'infiltrateur', title: 'Infiltrateur', description: 'Spécialiste des opérations furtives. Bonus de discrétion et d\'évasion.' },
-    { id: 'chef_equipe', title: 'Chef d\'équipe', description: 'Leadership naturel. Bonus aux caractéristiques des alliés à proximité.' },
-    { id: 'survivant', title: 'Survivant', description: 'Résistance accrue aux effets négatifs et capacité de récupération améliorée.' },
-    { id: 'expert_explosifs', title: 'Expert en explosifs', description: 'Maîtrise des explosifs et des pièges. Bonus de dégâts avec les explosifs.' },
-    { id: 'eclaireur', title: 'Éclaireur', description: 'Vision perçante et capacité à repérer les ennemis à distance.' },
-    { id: 'combattant_rapproche', title: 'Combattant rapproché', description: 'Spécialiste du combat au corps à corps. Bonus de dégâts en combat rapproché.' },
-    { id: 'strategue', title: 'Stratège', description: 'Capacité à élaborer des plans tactiques efficaces. Bonus à l\'initiative.' },
+    { id: 1, title: 'Ombre', description: 'Se déplace silencieusement et frappe sans avertissement, idéal pour les missions discrètes.' },
+    { id: 2, title: 'Gardien', description: 'Protège ses alliés, encaisse les dégâts et garde une position stratégique.' },
+    { id: 3, title: 'Hacker', description: 'Maîtrise les dispositifs technologiques et manipule l\'environnement à distance.' },
+    { id: 4, title: 'Survivant', description: 'Adapté aux situations extrêmes grâce à une grande résilience et une forte récupération.' },
   ];
 
   const insertStmt = db.prepare(
@@ -399,10 +408,10 @@ function insertInventory(agentId, inventoryItems) {
       agentId,
       item.name || '',
       item.category || '',
-      item.weight || 0,
+      Number(item.weight) || 0,
       item.type || null,
       item.class || null,
-      item.quantity || 1,
+      Number(item.quantity) || 1,
     ]);
     insertStmt.run();
   }
@@ -547,21 +556,21 @@ function updateAgent(agent) {
   run(updateSql, [
     agent.name,
     agent.firstName,
-    agent.age,
+    Number(agent.age) || null,
     agent.profession,
     agent.sex,
     agent.familyStatus,
-    agent.children,
+    Number(agent.children) || null,
     agent.story,
     // ✅ NOUVEAU : Suppression de talentId
     agent.password,
-    agent.availableStatsPoints ?? 0,
-    agent.availableAttributesPoints ?? 0,
-    agent.availableTalentPoints ?? 0,
-    agent.lifePercent ?? 100,
+    Number(agent.availableStatsPoints) || 0,
+    Number(agent.availableAttributesPoints) || 0,
+    Number(agent.availableTalentPoints) || 0,
+    Number(agent.lifePercent) || 100,
     agent.activeMission || '',
-    agent.inventoryCapacity ?? 30,
-    agent.xp ?? 0,
+    Number(agent.inventoryCapacity) || 30,
+    Number(agent.xp) || 0,
     agent.id,
   ]);
   
@@ -704,61 +713,64 @@ async function initializeDatabase() {
 
   db.run(`
     CREATE TABLE IF NOT EXISTS talents (
-      id TEXT PRIMARY KEY,
+      id INTEGER PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT NOT NULL
     );
   `);
 
-  // Migration: Corriger le type de la colonne id de talents (doit être TEXT, pas INTEGER)
+  // Migration: Corriger la structure de la table talents pour utiliser des IDs INTEGER
   try {
     const columns = db.exec('PRAGMA table_info(talents)');
     if (columns && columns.length > 0 && columns[0].values && columns[0].values.length > 0) {
       const idColumn = columns[0].values.find(col => col[1] === 'id');
-      if (idColumn && idColumn[2] !== 'TEXT') {
+      // Vérifier si la colonne id est de type TEXT
+      if (idColumn && idColumn[2] === 'TEXT') {
         // Sauvegarder les données existantes
-        const existingTalents = all('SELECT id, title, description FROM talents');
+        const existingTalents = all('SELECT title, description FROM talents');
         db.run('DROP TABLE talents');
         db.run(`
           CREATE TABLE IF NOT EXISTS talents (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             title TEXT NOT NULL,
             description TEXT NOT NULL
           );
         `);
-        // Réinsérer les données
+        // Réinsérer les données avec des IDs numériques séquentiels
         if (existingTalents.length > 0) {
           const insertStmt = db.prepare('INSERT INTO talents (id, title, description) VALUES (?, ?, ?)');
-          for (const talent of existingTalents) {
-            insertStmt.bind([String(talent.id), talent.title, talent.description]);
+          for (let i = 0; i < existingTalents.length; i++) {
+            const talent = existingTalents[i];
+            insertStmt.bind([i + 1, talent.title, talent.description]);
             insertStmt.run();
           }
           insertStmt.free();
         }
         saveDatabase();
+        console.log('Migration de la table talents vers INTEGER terminée');
       }
     }
   } catch (e) {
-    console.warn('Impossible de migrer la colonne id de talents:', e.message);
+    console.warn('Impossible de migrer la table talents:', e.message);
   }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS agent_talents_value (
       id INTEGER PRIMARY KEY,
       agent_id INTEGER NOT NULL,
-      talent_id TEXT NOT NULL,
+      talent_id INTEGER NOT NULL,
       FOREIGN KEY(agent_id) REFERENCES agents(id) ON DELETE CASCADE,
       FOREIGN KEY(talent_id) REFERENCES talents(id) ON DELETE CASCADE,
       UNIQUE(agent_id, talent_id)
     );
   `);
 
-  // Migration: Corriger le type de talent_id dans agent_talents_value (doit être TEXT, pas INTEGER)
+  // Migration: Corriger le type de talent_id dans agent_talents_value pour correspondre à talents.id (INTEGER)
   try {
     const atvColumns = db.exec('PRAGMA table_info(agent_talents_value)');
     if (atvColumns && atvColumns.length > 0 && atvColumns[0].values && atvColumns[0].values.length > 0) {
       const talentIdColumn = atvColumns[0].values.find(col => col[1] === 'talent_id');
-      if (talentIdColumn && talentIdColumn[2] !== 'TEXT') {
+      if (talentIdColumn && talentIdColumn[2] !== 'INTEGER') {
         // Sauvegarder les données existantes
         const existingAgentTalents = all('SELECT agent_id, talent_id FROM agent_talents_value');
         db.run('DROP TABLE agent_talents_value');
@@ -766,27 +778,35 @@ async function initializeDatabase() {
           CREATE TABLE IF NOT EXISTS agent_talents_value (
             id INTEGER PRIMARY KEY,
             agent_id INTEGER NOT NULL,
-            talent_id TEXT NOT NULL,
+            talent_id INTEGER NOT NULL,
             FOREIGN KEY(agent_id) REFERENCES agents(id) ON DELETE CASCADE,
             FOREIGN KEY(talent_id) REFERENCES talents(id) ON DELETE CASCADE,
             UNIQUE(agent_id, talent_id)
           );
         `);
-        // Réinsérer les données avec conversion en TEXT
+        // Réinsérer les données avec conversion en INTEGER
         if (existingAgentTalents.length > 0) {
           const insertStmt = db.prepare('INSERT INTO agent_talents_value (agent_id, talent_id) VALUES (?, ?)');
           for (const at of existingAgentTalents) {
-            insertStmt.bind([at.agent_id, String(at.talent_id)]);
+            // Convertir talent_id en INTEGER
+            // Si c'est déjà un nombre, le garder. Sinon essayer de le mapper depuis talents
+            let talentId = parseInt(at.talent_id);
+            if (isNaN(talentId)) {
+              // C'est un TEXT (ex: "phantom"), essayer de trouver l'ID numérique correspondant
+              const talentRow = get('SELECT id FROM talents WHERE title = (SELECT title FROM talents WHERE id = ? COLLATE NOCASE)', [at.talent_id]);
+              talentId = talentRow ? talentRow.id : 0;
+            }
+            insertStmt.bind([at.agent_id, talentId]);
             insertStmt.run();
           }
           insertStmt.free();
         }
         saveDatabase();
-        console.log('Migration de agent_talents_value.talent_id vers TEXT effectuée');
+        console.log('Migration de agent_talents_value.talent_id vers INTEGER terminée');
       }
     }
   } catch (e) {
-    console.warn('Impossible de migrer la colonne talent_id de agent_talents_value:', e.message);
+    console.warn('Impossible de migrer la colonne talent_id:', e.message);
   }
   db.run(`
     CREATE TABLE IF NOT EXISTS inventory (
@@ -1178,11 +1198,12 @@ function getAgentAttributes(agentId) {
 }
 
 function setAgentAttributeGroupValue(agentId, groupId, value) {
+  const numericValue = Number(value) || 0;
   const existing = get('SELECT id FROM agent_skill_attribute_groups_values WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
   if (existing) {
-    run('UPDATE agent_skill_attribute_groups_values SET value = ? WHERE agent_id = ? AND group_id = ?', [value, agentId, groupId]);
+    run('UPDATE agent_skill_attribute_groups_values SET value = ? WHERE agent_id = ? AND group_id = ?', [numericValue, agentId, groupId]);
   } else {
-    run('INSERT INTO agent_skill_attribute_groups_values (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, value]);
+    run('INSERT INTO agent_skill_attribute_groups_values (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, numericValue]);
   }
 }
 
@@ -1363,11 +1384,12 @@ function getAgentStatsGroupValue(agentId, groupId) {
 }
 
 function setAgentStatsGroupValue(agentId, groupId, value) {
+  const numericValue = Number(value) || 0;
   const existing = get('SELECT id FROM agent_stats_group_value WHERE agent_id = ? AND group_id = ?', [agentId, groupId]);
   if (existing) {
-    run('UPDATE agent_stats_group_value SET value = ? WHERE agent_id = ? AND group_id = ?', [value, agentId, groupId]);
+    run('UPDATE agent_stats_group_value SET value = ? WHERE agent_id = ? AND group_id = ?', [numericValue, agentId, groupId]);
   } else {
-    run('INSERT INTO agent_stats_group_value (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, value]);
+    run('INSERT INTO agent_stats_group_value (agent_id, group_id, value) VALUES (?, ?, ?)', [agentId, groupId, numericValue]);
   }
 }
 

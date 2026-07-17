@@ -10,6 +10,7 @@ import {
   weaponsData,
   medicalData,
   equipmentData,
+  effectsData,
   competencesHierarchy,
   competencesState,
   currentAgent,
@@ -220,6 +221,31 @@ export function deepMergeCompetences(saved) {
       }
     }
   }
+}
+
+// ============================================================================
+// CHARGEMENT DES EFFETS
+// ============================================================================
+
+/**
+ * Charge tous les effets disponibles
+ * @returns {Promise<Array>} - Tableau de tous les effets
+ */
+export async function loadAllEffects() {
+  if (effectsData.length) {
+    return Promise.resolve(effectsData);
+  }
+  return requestJson('/api/effects')
+    .then((data) => {
+      const loadedData = Array.isArray(data?.effects) ? data.effects : (Array.isArray(data) ? data : []);
+      effectsData.length = 0;
+      effectsData.push(...loadedData);
+      return effectsData;
+    })
+    .catch(() => {
+      effectsData.length = 0;
+      return effectsData;
+    });
 }
 
 // ============================================================================

@@ -26,6 +26,8 @@ import {
   talentIndex,
   selectedTalent,
   talentIdSelected,
+  currentStep,
+  visitedStep,
   attributeValues,
   reserveValues,
   selectedAgentTalent,
@@ -33,6 +35,15 @@ import {
   selectedAgentTalentTile,
   storyCount,
   resetWizardState,
+  setSelectedAgentTalent,
+  setSelectedAgentTalentId,
+  setSelectedAgentTalentTile,
+  resetSelectedAgentTalent,
+  setCurrentStep,
+  setVisitedStep,
+  setTalentIndex,
+  setSelectedTalent,
+  setTalentIdSelected,
 } from './state.js';
 
 // ============================================================================
@@ -94,6 +105,9 @@ import {
   closeItemDetailsBtn,
   itemDetailsContent,
   messagesView,
+  talentsContainer,
+  talentsAvailableContainer,
+  confirmTalentBtn,
 } from './elements.js';
 
 // ============================================================================
@@ -104,6 +118,8 @@ import {
   showModal,
   hideModal,
   sanitizeText,
+  scrollToTop,
+  showAgentCreatedPopup,
   openEffectDetails,
   renderInventory,
   updateMessagesButtonLabel,
@@ -150,10 +166,7 @@ import {
 // VARIABLES LOCALES
 // ============================================================================
 
-let currentStep = 1;
-let visitedStep = 1;
-
-// ============================================================================
+// ==========================================================================
 // WIZARD - CRÉATION D'AGENT
 // ============================================================================
 
@@ -162,8 +175,6 @@ let visitedStep = 1;
  */
 export function resetWizard() {
   resetWizardState();
-  currentStep = 1;
-  visitedStep = 1;
   
   Object.values(agentInputs).forEach((input) => {
     if (input) input.value = '';
@@ -175,6 +186,12 @@ export function resetWizard() {
   renderTalent();
   buildWizardStepNav();
   showWizardStep(1);
+  
+  // Pré-sélectionner le premier talent par défaut
+  if (talents.length > 0) {
+    setSelectedTalent(talents[0]);
+    setTalentIdSelected(String(talents[0].id));
+  }
 }
 
 /**
@@ -324,8 +341,8 @@ function updateWizardButton() {
  */
 function showWizardStep(step) {
   const allSteps = Array.from(wizardContent.querySelectorAll('.wizard-step'));
-  currentStep = step;
-  visitedStep = Math.max(visitedStep, step);
+  setCurrentStep(step);
+  setVisitedStep(step);
   allSteps.forEach((element) => {
     element.classList.toggle('active-step', Number(element.dataset.step) === step);
   });
@@ -346,9 +363,9 @@ export async function loadTalents() {
     const result = await requestJson('/api/talents');
     talents.length = 0;
     talents.push(...(Array.isArray(result) ? result : (result?.talents || result?.data || [])));
-    talentIndex = 0;
-    selectedTalent = null;
-    talentIdSelected = null;
+    setTalentIndex(0);
+    setSelectedTalent(null);
+    setTalentIdSelected(null);
   } catch {
     talents.length = 0;
   }
@@ -386,7 +403,7 @@ function renderTalent() {
  */
 export function navigateTalent(direction) {
   if (!talents.length) return;
-  talentIndex = (talentIndex + direction + talents.length) % talents.length;
+  setTalentIndex((talentIndex + direction + talents.length) % talents.length);
   renderTalent();
 }
 
@@ -397,8 +414,8 @@ export function chooseTalent() {
   if (!talents.length) return;
   const talent = talents[talentIndex];
   if (!talent || talent.id === null || talent.id === undefined) return;
-  selectedTalent = talent;
-  talentIdSelected = String(talent.id);
+  setSelectedTalent(talent);
+  setTalentIdSelected(String(talent.id));
   showWizardStep(6);
 }
 
@@ -425,7 +442,7 @@ export function getWizardData() {
       dexterity: attributeValues.dexterity,
       technique: attributeValues.technique,
     },
-    talents: selectedTalent ? [{...selectedTalent, id: String(selectedTalent.id)}] : [],
+    talents: selectedTalent ? [{...selectedTalent}] : [],
     story: agentInputs.story.value.trim(),
     password: agentInputs.password.value,
   };
@@ -1103,16 +1120,14 @@ export function selectAvailableTalent(talent, tile) {
     if (selectedAgentTalentTile) {
       selectedAgentTalentTile.classList.remove('selected');
     }
-    selectedAgentTalent = null;
-    selectedAgentTalentId = null;
-    selectedAgentTalentTile = null;
+    resetSelectedAgentTalent();
   } else {
     if (selectedAgentTalentTile) {
       selectedAgentTalentTile.classList.remove('selected');
     }
-    selectedAgentTalent = talent;
-    selectedAgentTalentId = String(talent.id);
-    selectedAgentTalentTile = tile;
+    setSelectedAgentTalent(talent);
+    setSelectedAgentTalentId(String(talent.id));
+    setSelectedAgentTalentTile(tile);
     tile.classList.add('selected');
   }
 
@@ -1126,7 +1141,14 @@ export function selectAvailableTalent(talent, tile) {
  * @returns {Promise<void>}
  */
 export async function confirmTalentSelection() {
-  if (!currentAgent || !selectedAgentTalent || !selectedAgentTalentId) return;
+  if (!currentAgent) {
+    showToast('Aucun agent sélectionné.');
+    return;
+  }
+  if (!selectedAgentTalent || !selectedAgentTalent.id) {
+    showToast('Veuillez sélectionner un talent valide.');
+    return;
+  }
   if (Number(currentAgent.availableTalentPoints ?? 0) <= 0) {
     showToast('Aucun point de talent disponible.');
     return;
@@ -1134,17 +1156,22 @@ export async function confirmTalentSelection() {
 
   currentAgent.availableTalentPoints = Math.max(0, Number(currentAgent.availableTalentPoints ?? 0) - 1);
   currentAgent.availableStatsPoints = Math.max(0, Number(currentAgent.availableStatsPoints ?? 0) - 1);
+  
+  // Sauvegarder le titre avant réinitialisation
+  const talentTitle = selectedAgentTalent.title;
+  
+  // Utiliser l'ID du talent directement depuis selectedAgentTalent
   currentAgent.talents = Array.isArray(currentAgent.talents)
-    ? [...currentAgent.talents, { ...selectedAgentTalent, id: String(selectedAgentTalentId) }]
-    : [{ ...selectedAgentTalent, id: String(selectedAgentTalentId) }];
+    ? [...currentAgent.talents, { ...selectedAgentTalent, id: String(selectedAgentTalent.id) }]
+    : [{ ...selectedAgentTalent, id: String(selectedAgentTalent.id) }];
 
   // Re-rendre l'agent pour mettre à jour les points
   const { renderAgent } = await import('./ui.js');
-  renderAgent(currentAgent);
+  await renderAgent(currentAgent);
   
   await persistCurrentAgent();
   await renderTalentsScreen();
-  showToast(`Talent activé : ${selectedAgentTalent.title}`);
+  showToast(`Talent activé : ${talentTitle}`);
 }
 
 /**
@@ -1155,9 +1182,7 @@ export async function renderTalentsScreen() {
   if (!talentsContainer || !talentsAvailableContainer || !currentAgent) return;
 
   // Réinitialiser la sélection
-  selectedAgentTalent = null;
-  selectedAgentTalentId = null;
-  selectedAgentTalentTile = null;
+  resetSelectedAgentTalent();
   
   if (confirmTalentBtn) {
     confirmTalentBtn.disabled = true;
@@ -1295,7 +1320,10 @@ export function initEventListeners() {
   });
   
   if (competencesBtn) competencesBtn.addEventListener('click', openCompetencesScreen);
-  if (talentsBtn) talentsBtn.addEventListener('click', renderTalentsScreen);
+  if (talentsBtn) talentsBtn.addEventListener('click', async () => {
+    openTalentsScreen();
+    await renderTalentsScreen();
+  });
   if (messagesBtn) messagesBtn.addEventListener('click', openMessagesScreen);
   
   // Inventaire
@@ -1453,8 +1481,13 @@ export function initEventListeners() {
           await createAgentAPI(data);
           showAgentCreatedPopup();
           resetWizard();
-        } catch {
-          // Erreur déjà affichée
+        } catch (error) {
+          console.log('Erreur lors de la création dans game.js:', error);
+          if (error.status === 409) {
+            showToast('Cet agent existe déjà. Choisissez un autre nom.');
+          } else {
+            showToast('Erreur lors de la création de l\'agent.');
+          }
         }
         return;
       }
@@ -1681,7 +1714,7 @@ async function saveSkillsAllocation() {
   showToast('Compétences mises à jour.');
   
   const { renderAgent } = await import('./ui.js');
-  renderAgent(currentAgent);
+  await renderAgent(currentAgent);
   openDashboardView();
 }
 
@@ -1701,6 +1734,6 @@ async function saveAttributesAllocation() {
   Object.keys(attributesViewInitialValues).forEach(key => delete attributesViewInitialValues[key]);
   
   const { renderAgent } = await import('./ui.js');
-  renderAgent(currentAgent);
+  await renderAgent(currentAgent);
   openDashboardView();
 }

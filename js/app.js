@@ -26,9 +26,9 @@ import {
 // ============================================================================
 // IMPORTS - Modules fonctionnels
 // ============================================================================
-import { showSection, showToast, showModal, hideModal, renderAgent, resetBrandTag, openDashboardView } from './ui.js';
+import { showSection, showToast, showModal, hideModal, renderAgent, resetBrandTag, openDashboardView, renderMessages } from './ui.js';
 import { loadCurrentAgent, loginAgent, createAgent, saveSession, clearSession, logout } from './auth.js';
-import { loadTalents, loadMessagesForCurrentAgent } from './data.js';
+import { loadTalents, loadMessagesForCurrentAgent, loadAllEffects } from './data.js';
 import { initEventListeners, resetWizard, getWizardData } from './game.js';
 import { findAgent } from './auth.js';
 
@@ -57,12 +57,21 @@ async function initApp() {
   if (agent) {
     // Un agent est connecté
     Object.assign(currentAgent, agent);
-    renderAgent(agent);
+    
+    // Charger les effets pour les détails
+    try {
+      await loadAllEffects();
+    } catch (error) {
+      console.error('Erreur chargement effets:', error);
+    }
+    
+    await renderAgent(agent);
     showSection('mainPage');
     
     // Charger les messages
     try {
-      await loadMessagesForCurrentAgent();
+      const messages = await loadMessagesForCurrentAgent();
+      renderMessages(messages);
     } catch (error) {
       console.error('Erreur lors du chargement des messages:', error);
     }
@@ -82,6 +91,9 @@ async function initApp() {
   
   // Initialiser le bouton retour tableau de bord
   initHomeButton();
+  
+  // Initialiser le bouton de la pop-up de création d'agent
+  initActivateAgentButton();
 }
 
 // ============================================================================
@@ -113,12 +125,21 @@ function initLoginForm() {
     // Sauvegarder la session et afficher l'agent
     saveSession(agent);
     Object.assign(currentAgent, agent);
-    renderAgent(agent);
+    
+    // Charger les effets pour les détails
+    try {
+      await loadAllEffects();
+    } catch (error) {
+      console.error('Erreur chargement effets:', error);
+    }
+    
+    await renderAgent(agent);
     showSection('mainPage');
     
     // Charger les messages
     try {
-      await loadMessagesForCurrentAgent();
+      const messages = await loadMessagesForCurrentAgent();
+      renderMessages(messages);
     } catch (error) {
       console.error('Erreur lors du chargement des messages:', error);
     }
