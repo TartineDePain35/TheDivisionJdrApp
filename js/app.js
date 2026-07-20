@@ -33,9 +33,9 @@ import { initEventListeners, resetWizard, getWizardData } from './game.js';
 import { findAgent } from './auth.js';
 
 // ============================================================================
-// IMPORTS - State (pour accéder à currentAgent)
+// IMPORTS - Store Centralisé
 // ============================================================================
-import { currentAgent } from './state.js';
+import { store } from './store.js';
 
 // Obtenir createAgentBtn directement pour éviter les problèmes de timing des modules
 const createAgentBtn = document.getElementById('createAgentBtn');
@@ -55,8 +55,8 @@ async function initApp() {
   const agent = await loadCurrentAgent();
   
   if (agent) {
-    // Un agent est connecté
-    Object.assign(currentAgent, agent);
+    // Un agent est connecté - utiliser le Store
+    store.setCurrentAgent(agent);
     
     // Charger les effets pour les détails
     try {
@@ -65,12 +65,15 @@ async function initApp() {
       console.error('Erreur chargement effets:', error);
     }
     
+    // renderAgent sera appelé automatiquement via l'abonnement dans ui.js
+    // Mais on l'appelle aussi ici au cas où l'abonnement n'est pas encore initialisé
     await renderAgent(agent);
     showSection('mainPage');
     
     // Charger les messages
     try {
       const messages = await loadMessagesForCurrentAgent();
+      // renderMessages sera appelé automatiquement via l'abonnement
       renderMessages(messages);
     } catch (error) {
       console.error('Erreur lors du chargement des messages:', error);
@@ -124,7 +127,7 @@ function initLoginForm() {
     
     // Sauvegarder la session et afficher l'agent
     saveSession(agent);
-    Object.assign(currentAgent, agent);
+    store.setCurrentAgent(agent);
     
     // Charger les effets pour les détails
     try {
@@ -133,12 +136,14 @@ function initLoginForm() {
       console.error('Erreur chargement effets:', error);
     }
     
+    // renderAgent sera appelé automatiquement via l'abonnement dans ui.js
     await renderAgent(agent);
     showSection('mainPage');
     
     // Charger les messages
     try {
       const messages = await loadMessagesForCurrentAgent();
+      // renderMessages sera appelé automatiquement via l'abonnement
       renderMessages(messages);
     } catch (error) {
       console.error('Erreur lors du chargement des messages:', error);

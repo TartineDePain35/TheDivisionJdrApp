@@ -4,47 +4,9 @@
  */
 
 // ============================================================================
-// IMPORTS - State
+// IMPORTS - Store Centralisé
 // ============================================================================
-import {
-  currentAgent,
-  currentAgentMessages,
-  expandedMessageIds,
-  weaponsData,
-  medicalData,
-  equipmentData,
-  competencesHierarchy,
-  competencesState,
-  baseStats,
-  baseAttributes,
-  skillsState,
-  attributesState,
-  attributesViewModifications,
-  attributesViewInitialValues,
-  pendingDeleteIndex,
-  talents,
-  talentIndex,
-  selectedTalent,
-  talentIdSelected,
-  currentStep,
-  visitedStep,
-  attributeValues,
-  reserveValues,
-  selectedAgentTalent,
-  selectedAgentTalentId,
-  selectedAgentTalentTile,
-  storyCount,
-  resetWizardState,
-  setSelectedAgentTalent,
-  setSelectedAgentTalentId,
-  setSelectedAgentTalentTile,
-  resetSelectedAgentTalent,
-  setCurrentStep,
-  setVisitedStep,
-  setTalentIndex,
-  setSelectedTalent,
-  setTalentIdSelected,
-} from './state.js';
+import { store } from './store.js';
 
 // ============================================================================
 // IMPORTS - Configuration
@@ -188,9 +150,9 @@ export function resetWizard() {
   showWizardStep(1);
   
   // Pré-sélectionner le premier talent par défaut
-  if (talents.length > 0) {
-    setSelectedTalent(talents[0]);
-    setTalentIdSelected(String(talents[0].id));
+  if (store.talents.length > 0) {
+    store.setSelectedTalent(store.talents[0]);
+    store.setTalentIdSelected(String(store.talents[0].id));
   }
 }
 
@@ -217,8 +179,8 @@ function updateWizardStepNav() {
   const buttons = Array.from(wizardStepNav.querySelectorAll('button[data-step]'));
   buttons.forEach((button) => {
     const step = Number(button.dataset.step);
-    button.classList.toggle('active-step-nav', step === currentStep);
-    button.disabled = step > visitedStep;
+    button.classList.toggle('active-step-nav', step === store.currentStep);
+    button.disabled = step > store.visitedStep;
   });
 }
 
@@ -228,8 +190,8 @@ function updateWizardStepNav() {
 function updateReserveDisplay() {
   const statReserve = document.getElementById('statReserve');
   const attrReserve = document.getElementById('attrReserve');
-  if (statReserve) statReserve.textContent = String(reserveValues.stats);
-  if (attrReserve) attrReserve.textContent = String(reserveValues.attrs);
+  if (statReserve) statReserve.textContent = String(store.reserveValues.stats);
+  if (attrReserve) attrReserve.textContent = String(store.reserveValues.attrs);
 }
 
 /**
@@ -243,13 +205,13 @@ function updatePointButtons() {
     const attr = button.dataset.attr;
     if (!attr) return;
     const reserveKey = ['speed', 'resilience', 'vigor'].includes(attr) ? 'stats' : 'attrs';
-    button.disabled = reserveValues[reserveKey] <= 0;
+    button.disabled = store.reserveValues[reserveKey] <= 0;
   });
 
   minusButtons.forEach((button) => {
     const attr = button.dataset.attr;
     if (!attr) return;
-    button.disabled = attributeValues[attr] <= 1;
+    button.disabled = store.attributeValues[attr] <= 1;
   });
 }
 
@@ -261,16 +223,24 @@ function updatePointButtons() {
 export function changeAttribute(attr, action) {
   const reserveKey = ['speed', 'resilience', 'vigor'].includes(attr) ? 'stats' : 'attrs';
   if (action === 'increase') {
-    if (reserveValues[reserveKey] <= 0) return;
-    reserveValues[reserveKey] -= 1;
-    attributeValues[attr] += 1;
+    if (store.reserveValues[reserveKey] <= 0) return;
+    const newReserveValues = { ...store.reserveValues };
+    newReserveValues[reserveKey] -= 1;
+    const newAttributeValues = { ...store.attributeValues };
+    newAttributeValues[attr] += 1;
+    store.setReserveValues(newReserveValues);
+    store.setAttributeValues(newAttributeValues);
   } else {
-    if (attributeValues[attr] <= 1) return;
-    attributeValues[attr] -= 1;
-    reserveValues[reserveKey] += 1;
+    if (store.attributeValues[attr] <= 1) return;
+    const newAttributeValues = { ...store.attributeValues };
+    newAttributeValues[attr] -= 1;
+    const newReserveValues = { ...store.reserveValues };
+    newReserveValues[reserveKey] += 1;
+    store.setAttributeValues(newAttributeValues);
+    store.setReserveValues(newReserveValues);
   }
   const element = document.getElementById(`${attr}Value`);
-  if (element) element.textContent = String(attributeValues[attr]);
+  if (element) element.textContent = String(store.attributeValues[attr]);
   updateReserveDisplay();
   updatePointButtons();
   updateWizardButton();
@@ -299,13 +269,13 @@ function validateStep(step) {
     );
   }
   if (step === 3) {
-    return reserveValues.stats === 0;
+    return store.reserveValues.stats === 0;
   }
   if (step === 4) {
-    return reserveValues.attrs === 0;
+    return store.reserveValues.attrs === 0;
   }
   if (step === 5) {
-    return talentIdSelected !== null;
+    return store.talentIdSelected !== null;
   }
   if (step === 6) {
     return agentInputs.story.value.trim().length > 0;
@@ -331,8 +301,8 @@ function validatePasswordStep() {
 function updateWizardButton() {
   if (!wizardNext) return;
   
-  wizardNext.disabled = !validateStep(currentStep);
-  wizardNext.textContent = currentStep === 7 ? 'Valider votre agent' : 'Suivant';
+  wizardNext.disabled = !validateStep(store.currentStep);
+  wizardNext.textContent = store.currentStep === 7 ? 'Valider votre agent' : 'Suivant';
 }
 
 /**
@@ -341,8 +311,8 @@ function updateWizardButton() {
  */
 function showWizardStep(step) {
   const allSteps = Array.from(wizardContent.querySelectorAll('.wizard-step'));
-  setCurrentStep(step);
-  setVisitedStep(step);
+  store.setCurrentStep(step);
+  store.setVisitedStep(step);
   allSteps.forEach((element) => {
     element.classList.toggle('active-step', Number(element.dataset.step) === step);
   });
@@ -361,13 +331,16 @@ function showWizardStep(step) {
 export async function loadTalents() {
   try {
     const result = await requestJson('/api/talents');
-    talents.length = 0;
-    talents.push(...(Array.isArray(result) ? result : (result?.talents || result?.data || [])));
-    setTalentIndex(0);
-    setSelectedTalent(null);
-    setTalentIdSelected(null);
+    // Utiliser le setter pour wizardTalents au lieu de muter talents directement
+    const loadedTalents = Array.isArray(result) ? result : (result?.talents || result?.data || []);
+    store.setWizardTalents(loadedTalents);
+    
+    // Utiliser les setters du Store pour le wizard
+    store.setTalentIndex(0);
+    store.setSelectedTalent(null);
+    store.setTalentIdSelected(null);
   } catch {
-    talents.length = 0;
+    store.setWizardTalents([]);
   }
   renderTalent();
 }
@@ -376,7 +349,12 @@ export async function loadTalents() {
  * Rendu du talent courant dans le wizard
  */
 function renderTalent() {
-  console.log('renderTalent() appelé - talentIndex:', talentIndex, 'talents.length:', talents.length, 'selectedTalent:', selectedTalent);
+  // Utiliser les getters du Store
+  const wizardTalents = store.wizardTalents;
+  const index = store.talentIndex;
+  const selected = store.selectedTalent;
+  
+  console.log('renderTalent() appelé - talentIndex:', index, 'talents.length:', wizardTalents.length, 'selectedTalent:', selected);
   
   // Obtenir les éléments directement pour éviter les problèmes de timing des modules
   const talentTitle = document.getElementById('talentTitle');
@@ -386,7 +364,7 @@ function renderTalent() {
     console.log('Erreur: talentTitle ou talentDescription non trouvé dans le DOM');
     return;
   }
-  const talent = talents[talentIndex] || selectedTalent;
+  const talent = wizardTalents[index] || selected;
   console.log('Talent à afficher:', talent);
   if (!talent) {
     talentTitle.textContent = 'Chargement des talents...';
@@ -402,8 +380,8 @@ function renderTalent() {
  * @param {number} direction - Direction (1 ou -1)
  */
 export function navigateTalent(direction) {
-  if (!talents.length) return;
-  setTalentIndex((talentIndex + direction + talents.length) % talents.length);
+  if (!store.wizardTalents.length) return;
+  store.setTalentIndex((store.talentIndex + direction + store.wizardTalents.length) % store.wizardTalents.length);
   renderTalent();
 }
 
@@ -411,11 +389,11 @@ export function navigateTalent(direction) {
  * Sélectionne un talent
  */
 export function chooseTalent() {
-  if (!talents.length) return;
-  const talent = talents[talentIndex];
+  if (!store.wizardTalents.length) return;
+  const talent = store.wizardTalents[store.talentIndex];
   if (!talent || talent.id === null || talent.id === undefined) return;
-  setSelectedTalent(talent);
-  setTalentIdSelected(String(talent.id));
+  store.setSelectedTalent(talent);
+  store.setTalentIdSelected(String(talent.id));
   showWizardStep(6);
 }
 
@@ -433,16 +411,16 @@ export function getWizardData() {
     familyStatus: agentInputs.familyStatus.value,
     children: Number(agentInputs.children.value),
     stats: {
-      speed: attributeValues.speed,
-      resilience: attributeValues.resilience,
-      vigor: attributeValues.vigor,
+      speed: store.attributeValues.speed,
+      resilience: store.attributeValues.resilience,
+      vigor: store.attributeValues.vigor,
     },
     attributes: {
-      conscience: attributeValues.conscience,
-      dexterity: attributeValues.dexterity,
-      technique: attributeValues.technique,
+      conscience: store.attributeValues.conscience,
+      dexterity: store.attributeValues.dexterity,
+      technique: store.attributeValues.technique,
     },
-    talents: selectedTalent ? [{...selectedTalent}] : [],
+    talents: store.selectedTalent ? [{...store.selectedTalent}] : [],
     story: agentInputs.story.value.trim(),
     password: agentInputs.password.value,
   };
@@ -500,7 +478,7 @@ export function resetAddItemModal() {
  * Construit les options de type d'arme
  */
 function buildWeaponTypeOptions() {
-  const types = [...new Set(weaponsData.map((weapon) => weapon.type))].filter(Boolean);
+  const types = [...new Set(store.weaponsData.map((weapon) => weapon.type))].filter(Boolean);
   if (weaponTypeSelect) {
     weaponTypeSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...types.map((type) => `<option value="${type}">${type}</option>`)].join('');
     weaponTypeSelect.disabled = false;
@@ -529,7 +507,7 @@ function buildWeaponTypeOptions() {
  */
 function buildWeaponCategoryOptions(type) {
   const categories = [
-    ...new Set(weaponsData.filter((weapon) => weapon.type === type).map((weapon) => weapon.category))
+    ...new Set(store.weaponsData.filter((weapon) => weapon.type === type).map((weapon) => weapon.category))
   ].filter(Boolean);
   if (weaponCategorySelect) {
     weaponCategorySelect.innerHTML = ['<option value="">Sélectionnez</option>', ...categories.map((category) => `<option value="${category}">${category}</option>`)].join('');
@@ -556,7 +534,7 @@ function buildWeaponCategoryOptions(type) {
  */
 function buildWeaponClassOptions(type, category) {
   const classes = [
-    ...new Set(weaponsData.filter((weapon) => weapon.type === type && weapon.category === category).map((weapon) => weapon.class))
+    ...new Set(store.weaponsData.filter((weapon) => weapon.type === type && weapon.category === category).map((weapon) => weapon.class))
   ].filter(Boolean);
   if (weaponClassSelect) {
     weaponClassSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...classes.map((className) => `<option value="${className}">${className}</option>`)].join('');
@@ -580,7 +558,7 @@ function buildWeaponClassOptions(type, category) {
  */
 function buildWeaponNameOptions(type, category, className) {
   const names = [
-    ...new Set(weaponsData.filter((weapon) => weapon.type === type && weapon.category === category && weapon.class === className).map((weapon) => weapon.name))
+    ...new Set(store.weaponsData.filter((weapon) => weapon.type === type && weapon.category === category && weapon.class === className).map((weapon) => weapon.name))
   ].filter(Boolean);
   if (weaponNameSelect) {
     weaponNameSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...names.map((name) => `<option value="${name}">${name}</option>`)].join('');
@@ -596,7 +574,7 @@ function buildWeaponNameOptions(type, category, className) {
  * Construit les options de type médical
  */
 function buildMedicalTypeOptions() {
-  const types = [...new Set(medicalData.map((item) => item.type))].filter(Boolean);
+  const types = [...new Set(store.medicalData.map((item) => item.type))].filter(Boolean);
   if (medicalTypeSelect) {
     medicalTypeSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...types.map((type) => `<option value="${type}">${type}</option>`)].join('');
     medicalTypeSelect.disabled = false;
@@ -620,7 +598,7 @@ function buildMedicalTypeOptions() {
  * @param {string} type - Type médical
  */
 function buildMedicalCategoryOptions(type) {
-  const categories = [...new Set(medicalData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
+  const categories = [...new Set(store.medicalData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
   if (medicalCategorySelect) {
     medicalCategorySelect.innerHTML = ['<option value="">Sélectionnez</option>', ...categories.map((category) => `<option value="${category}">${category}</option>`)].join('');
     medicalCategorySelect.disabled = false;
@@ -641,7 +619,7 @@ function buildMedicalCategoryOptions(type) {
  * @param {string} category - Catégorie médicale
  */
 function buildMedicalNameOptions(type, category) {
-  const names = medicalData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
+  const names = store.medicalData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
   if (medicalNameSelect) {
     medicalNameSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...names.map((name) => `<option value="${name}">${name}</option>`)].join('');
     medicalNameSelect.disabled = false;
@@ -656,7 +634,7 @@ function buildMedicalNameOptions(type, category) {
  * Construit les options de type d'équipement
  */
 function buildEquipmentTypeOptions() {
-  const types = [...new Set(equipmentData.map((item) => item.type))].filter(Boolean);
+  const types = [...new Set(store.equipmentData.map((item) => item.type))].filter(Boolean);
   if (equipmentTypeSelect) {
     equipmentTypeSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...types.map((type) => `<option value="${type}">${type}</option>`)].join('');
     equipmentTypeSelect.disabled = false;
@@ -680,7 +658,7 @@ function buildEquipmentTypeOptions() {
  * @param {string} type - Type d'équipement
  */
 function buildEquipmentCategoryOptions(type) {
-  const categories = [...new Set(equipmentData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
+  const categories = [...new Set(store.equipmentData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
   if (equipmentCategorySelect) {
     equipmentCategorySelect.innerHTML = ['<option value="">Sélectionnez</option>', ...categories.map((category) => `<option value="${category}">${category}</option>`)].join('');
     equipmentCategorySelect.disabled = false;
@@ -701,7 +679,7 @@ function buildEquipmentCategoryOptions(type) {
  * @param {string} category - Catégorie d'équipement
  */
 function buildEquipmentNameOptions(type, category) {
-  const names = equipmentData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
+  const names = store.equipmentData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
   if (equipmentNameSelect) {
     equipmentNameSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...names.map((name) => `<option value="${name}">${name}</option>`)].join('');
     equipmentNameSelect.disabled = false;
@@ -812,7 +790,7 @@ export function openAddItemModal() {
  * @returns {Promise<void>}
  */
 async function addSelectedWeaponToInventory() {
-  if (!currentAgent || !addItemTypeSelect || !weaponTypeSelect || !weaponCategorySelect || 
+  if (!store.currentAgent || !addItemTypeSelect || !weaponTypeSelect || !weaponCategorySelect || 
       !weaponClassSelect || !weaponNameSelect) return;
   if (addItemTypeSelect.value !== 'Armes') return;
   
@@ -821,7 +799,7 @@ async function addSelectedWeaponToInventory() {
   const selectedClass = weaponClassSelect.value;
   const selectedName = weaponNameSelect.value;
   
-  const weapon = weaponsData.find(
+  const weapon = store.weaponsData.find(
     (item) =>
       item.type === selectedType &&
       item.category === selectedCategory &&
@@ -831,7 +809,8 @@ async function addSelectedWeaponToInventory() {
   
   if (!weapon) return;
   
-  currentAgent.inventory = [
+  const currentAgent = store.currentAgent;
+  const newInventory = [
     ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
     { 
       name: weapon.name, 
@@ -841,8 +820,9 @@ async function addSelectedWeaponToInventory() {
       class: weapon.class 
     },
   ];
+  store.updateCurrentAgent('inventory', newInventory);
   
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   hideModal(addItemModal);
   await persistCurrentAgent();
   showToast(`Objet "${weapon.name}" ajouté à l'inventaire.`);
@@ -853,14 +833,14 @@ async function addSelectedWeaponToInventory() {
  * @returns {Promise<void>}
  */
 async function addSelectedMedicalToInventory() {
-  if (!currentAgent || !addItemTypeSelect || !medicalTypeSelect || !medicalCategorySelect || !medicalNameSelect) return;
+  if (!store.currentAgent || !addItemTypeSelect || !medicalTypeSelect || !medicalCategorySelect || !medicalNameSelect) return;
   if (addItemTypeSelect.value !== 'Medical') return;
   
   const selectedType = medicalTypeSelect.value;
   const selectedCategory = medicalCategorySelect.value;
   const selectedName = medicalNameSelect.value;
   
-  const medical = medicalData.find(
+  const medical = store.medicalData.find(
     (item) =>
       item.type === selectedType &&
       item.category === selectedCategory &&
@@ -869,7 +849,8 @@ async function addSelectedMedicalToInventory() {
   
   if (!medical) return;
   
-  currentAgent.inventory = [
+  const currentAgent = store.currentAgent;
+  const newInventory = [
     ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
     { 
       name: medical.name, 
@@ -878,8 +859,9 @@ async function addSelectedMedicalToInventory() {
       type: medical.type 
     },
   ];
+  store.updateCurrentAgent('inventory', newInventory);
   
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   hideModal(addItemModal);
   await persistCurrentAgent();
   showToast(`Objet "${medical.name}" ajouté à l'inventaire.`);
@@ -890,14 +872,14 @@ async function addSelectedMedicalToInventory() {
  * @returns {Promise<void>}
  */
 async function addSelectedEquipmentToInventory() {
-  if (!currentAgent || !addItemTypeSelect || !equipmentTypeSelect || !equipmentCategorySelect || !equipmentNameSelect) return;
+  if (!store.currentAgent || !addItemTypeSelect || !equipmentTypeSelect || !equipmentCategorySelect || !equipmentNameSelect) return;
   if (addItemTypeSelect.value !== 'Equipement') return;
   
   const selectedType = equipmentTypeSelect.value;
   const selectedCategory = equipmentCategorySelect.value;
   const selectedName = equipmentNameSelect.value;
   
-  const equipment = equipmentData.find(
+  const equipment = store.equipmentData.find(
     (item) =>
       item.type === selectedType &&
       item.category === selectedCategory &&
@@ -906,7 +888,8 @@ async function addSelectedEquipmentToInventory() {
   
   if (!equipment) return;
   
-  currentAgent.inventory = [
+  const currentAgent = store.currentAgent;
+  const newInventory = [
     ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
     { 
       name: equipment.name, 
@@ -915,8 +898,9 @@ async function addSelectedEquipmentToInventory() {
       type: equipment.type 
     },
   ];
+  store.updateCurrentAgent('inventory', newInventory);
   
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   hideModal(addItemModal);
   await persistCurrentAgent();
   showToast(`Objet "${equipment.name}" ajouté à l'inventaire.`);
@@ -927,7 +911,7 @@ async function addSelectedEquipmentToInventory() {
  * @returns {Promise<void>}
  */
 async function addSelectedOtherToInventory() {
-  if (!currentAgent || !otherItemName || !otherItemWeight) return;
+  if (!store.currentAgent || !otherItemName || !otherItemWeight) return;
   
   const name = otherItemName.value.trim();
   const description = otherItemDescription?.value?.trim() || '';
@@ -938,12 +922,14 @@ async function addSelectedOtherToInventory() {
     return;
   }
   
-  currentAgent.inventory = [
+  const currentAgent = store.currentAgent;
+  const newInventory = [
     ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
     { name, description, weight: Number(weight), category: 'Autre' },
   ];
+  store.updateCurrentAgent('inventory', newInventory);
   
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   hideModal(addItemModal);
   await persistCurrentAgent();
   showToast(`Objet "${name}" ajouté à l'inventaire.`);
@@ -958,7 +944,7 @@ async function addSelectedOtherToInventory() {
  * @param {number} index - Index de l'item
  */
 export function openDeleteItem(index) {
-  pendingDeleteIndex = index;
+  store.setPendingDeleteIndex(index);
   showModal(deleteItemModal);
 }
 
@@ -967,13 +953,15 @@ export function openDeleteItem(index) {
  * @returns {Promise<void>}
  */
 async function confirmDeleteItem() {
-  if (pendingDeleteIndex === null || !currentAgent) return;
+  if (store.pendingDeleteIndex === null || !store.currentAgent) return;
   
-  currentAgent.inventory = currentAgent.inventory.filter((_, index) => index !== pendingDeleteIndex);
-  pendingDeleteIndex = null;
+  const currentAgent = store.currentAgent;
+  const newInventory = currentAgent.inventory.filter((_, index) => index !== store.pendingDeleteIndex);
+  store.setPendingDeleteIndex(null);
+  store.updateCurrentAgent('inventory', newInventory);
   
   hideModal(deleteItemModal);
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   await persistCurrentAgent();
   showToast('Objet supprimé de votre inventaire.');
 }
@@ -982,7 +970,7 @@ async function confirmDeleteItem() {
  * Annule la suppression
  */
 export function cancelDeleteItem() {
-  pendingDeleteIndex = null;
+  store.setPendingDeleteIndex(null);
   hideModal(deleteItemModal);
 }
 
@@ -996,7 +984,7 @@ export function cancelDeleteItem() {
  * @returns {Promise<void>}
  */
 export async function openItemDetails(index) {
-  const item = currentAgent?.inventory?.[index];
+  const item = store.currentAgent?.inventory?.[index];
   if (!item || !itemDetailsContent) return;
 
   let source = item;
@@ -1007,7 +995,7 @@ export async function openItemDetails(index) {
   // Chercher dans les armes
   if (item.class || item.type === 'Armes légères' || item.category?.includes('Armes')) {
     await loadWeaponsData();
-    const weapon = weaponsData.find((weaponItem) => {
+    const weapon = store.weaponsData.find((weaponItem) => {
       const sameName = weaponItem.name === item.name;
       const sameType = !item.type || weaponItem.type === item.type;
       const sameCategory = !item.category || weaponItem.category === item.category;
@@ -1023,7 +1011,7 @@ export async function openItemDetails(index) {
   // Chercher dans le médical
   if (!isWeapon && (item.range || ['Injection', 'Electronique', 'Application'].includes(item.category))) {
     await loadMedicalData();
-    const medical = medicalData.find((medicalItem) => {
+    const medical = store.medicalData.find((medicalItem) => {
       const sameName = medicalItem.name === item.name;
       const sameType = !item.type || medicalItem.type === item.type;
       const sameCategory = !item.category || medicalItem.category === item.category;
@@ -1038,7 +1026,7 @@ export async function openItemDetails(index) {
   // Chercher dans l'équipement
   if (!isWeapon && !isMedical && item.effect && ['Armure'].includes(item.category)) {
     await loadEquipmentData();
-    const equipment = equipmentData.find((equipmentItem) => {
+    const equipment = store.equipmentData.find((equipmentItem) => {
       const sameName = equipmentItem.name === item.name;
       const sameType = !item.type || equipmentItem.type === item.type;
       const sameCategory = !item.category || equipmentItem.category === item.category;
@@ -1116,23 +1104,23 @@ export function closeItemDetails() {
 export function selectAvailableTalent(talent, tile) {
   if (!talent || !talent.id) return;
 
-  if (selectedAgentTalentId === String(talent.id)) {
-    if (selectedAgentTalentTile) {
-      selectedAgentTalentTile.classList.remove('selected');
+  if (store.selectedAgentTalentId === String(talent.id)) {
+    if (store.selectedAgentTalentTile) {
+      store.selectedAgentTalentTile.classList.remove('selected');
     }
-    resetSelectedAgentTalent();
+    store.resetSelectedAgentTalent();
   } else {
-    if (selectedAgentTalentTile) {
-      selectedAgentTalentTile.classList.remove('selected');
+    if (store.selectedAgentTalentTile) {
+      store.selectedAgentTalentTile.classList.remove('selected');
     }
-    setSelectedAgentTalent(talent);
-    setSelectedAgentTalentId(String(talent.id));
-    setSelectedAgentTalentTile(tile);
+    store.setSelectedAgentTalent(talent);
+    store.setSelectedAgentTalentId(String(talent.id));
+    store.setSelectedAgentTalentTile(tile);
     tile.classList.add('selected');
   }
 
   if (confirmTalentBtn) {
-    confirmTalentBtn.disabled = !selectedAgentTalentId;
+    confirmTalentBtn.disabled = !store.selectedAgentTalentId;
   }
 }
 
@@ -1141,33 +1129,36 @@ export function selectAvailableTalent(talent, tile) {
  * @returns {Promise<void>}
  */
 export async function confirmTalentSelection() {
-  if (!currentAgent) {
+  if (!store.currentAgent) {
     showToast('Aucun agent sélectionné.');
     return;
   }
-  if (!selectedAgentTalent || !selectedAgentTalent.id) {
+  if (!store.selectedAgentTalent || !store.selectedAgentTalent.id) {
     showToast('Veuillez sélectionner un talent valide.');
     return;
   }
-  if (Number(currentAgent.availableTalentPoints ?? 0) <= 0) {
+  if (Number(store.currentAgent.availableTalentPoints ?? 0) <= 0) {
     showToast('Aucun point de talent disponible.');
     return;
   }
 
+  const currentAgent = { ...store.currentAgent };
   currentAgent.availableTalentPoints = Math.max(0, Number(currentAgent.availableTalentPoints ?? 0) - 1);
   currentAgent.availableStatsPoints = Math.max(0, Number(currentAgent.availableStatsPoints ?? 0) - 1);
   
   // Sauvegarder le titre avant réinitialisation
-  const talentTitle = selectedAgentTalent.title;
+  const talentTitle = store.selectedAgentTalent.title;
   
   // Utiliser l'ID du talent directement depuis selectedAgentTalent
   currentAgent.talents = Array.isArray(currentAgent.talents)
-    ? [...currentAgent.talents, { ...selectedAgentTalent, id: String(selectedAgentTalent.id) }]
-    : [{ ...selectedAgentTalent, id: String(selectedAgentTalent.id) }];
+    ? [...currentAgent.talents, { ...store.selectedAgentTalent, id: String(store.selectedAgentTalent.id) }]
+    : [{ ...store.selectedAgentTalent, id: String(store.selectedAgentTalent.id) }];
+  
+  store.setCurrentAgent(currentAgent);
 
   // Re-rendre l'agent pour mettre à jour les points
   const { renderAgent } = await import('./ui.js');
-  await renderAgent(currentAgent);
+  await renderAgent(store.currentAgent);
   
   await persistCurrentAgent();
   await renderTalentsScreen();

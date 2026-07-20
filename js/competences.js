@@ -4,13 +4,9 @@
  */
 
 // ============================================================================
-// IMPORTS - State
+// IMPORTS - Store Centralisé
 // ============================================================================
-import {
-  currentAgent,
-  competencesHierarchy,
-  competencesState,
-} from './state.js';
+import { store } from './store.js';
 
 // ============================================================================
 // IMPORTS - Data
@@ -430,7 +426,7 @@ export function handleSkillValueChange(skillId, change, parentSkillGroup, skillG
  * @returns {Promise<void>}
  */
 export async function saveAttributeValuesForGroup(groupId) {
-  if (!currentAgent?.id || !attributeModifications || Object.keys(attributeModifications).length === 0) {
+  if (!store.currentAgent?.id || !attributeModifications || Object.keys(attributeModifications).length === 0) {
     showToast('Aucune modification à sauvegarder.');
     return;
   }
@@ -442,7 +438,7 @@ export async function saveAttributeValuesForGroup(groupId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentId: currentAgent.id,
+          agentId: store.currentAgent.id,
           attributeId: Number(attributeId),
           value: Number(value)
         })
@@ -487,7 +483,7 @@ export async function saveAttributeValuesForGroup(groupId) {
  * @returns {Promise<void>}
  */
 export async function saveSkillGroupValuesForAttribute(attributeId) {
-  if (!currentAgent?.id || !skillGroupModifications || Object.keys(skillGroupModifications).length === 0) {
+  if (!store.currentAgent?.id || !skillGroupModifications || Object.keys(skillGroupModifications).length === 0) {
     showToast('Aucune modification à sauvegarder.');
     return;
   }
@@ -499,7 +495,7 @@ export async function saveSkillGroupValuesForAttribute(attributeId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentId: currentAgent.id,
+          agentId: store.currentAgent.id,
           groupId: Number(skillGroupId),
           value: Number(value)
         })
@@ -528,8 +524,8 @@ export async function saveSkillGroupValuesForAttribute(attributeId) {
     currentAttributeGroup = null;
     
     // Trouver le groupe parent et l'attribut pour réafficher correctement
-    const parentGroupId = Object.keys(competencesState).find(key => 
-      competencesState[key].attributes?.some(attr => attr.id === attributeId)
+    const parentGroupId = Object.keys(store.competencesState).find(key => 
+      store.competencesState[key].attributes?.some(attr => attr.id === attributeId)
     );
     if (parentGroupId) {
       renderCompetencesLevel(2, attributeId, [Number(parentGroupId)]);
@@ -552,7 +548,7 @@ export async function saveSkillGroupValuesForAttribute(attributeId) {
  * @returns {Promise<void>}
  */
 export async function saveSkillValuesForGroup(skillGroupId) {
-  if (!currentAgent?.id || !skillModifications || Object.keys(skillModifications).length === 0) {
+  if (!store.currentAgent?.id || !skillModifications || Object.keys(skillModifications).length === 0) {
     showToast('Aucune modification à sauvegarder.');
     return;
   }
@@ -564,7 +560,7 @@ export async function saveSkillValuesForGroup(skillGroupId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentId: currentAgent.id,
+          agentId: store.currentAgent.id,
           skillId: Number(skillId),
           value: Number(value)
         })
@@ -595,7 +591,7 @@ export async function saveSkillValuesForGroup(skillGroupId) {
     // Trouver le chemin complet pour réafficher correctement
     let parentGroupId = null;
     let parentAttributeId = null;
-    for (const group of competencesHierarchy) {
+    for (const group of store.competencesHierarchy) {
       for (const attr of group.attributes || []) {
         if (attr.skillGroups?.some(sg => sg.id === skillGroupId)) {
           parentGroupId = group.id;
@@ -626,16 +622,16 @@ export async function saveSkillValuesForGroup(skillGroupId) {
  * @returns {Promise<void>}
  */
 export async function saveCompetencesAllocation() {
-  if (!currentAgent?.id) return;
+  if (!store.currentAgent?.id) return;
   
   try {
     // Sauvegarder tous les niveaux de la hiérarchie
-    for (const group of competencesHierarchy) {
+    for (const group of store.competencesHierarchy) {
       await fetch('/api/skills/attribute-group', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentId: currentAgent.id,
+          agentId: store.currentAgent.id,
           groupId: group.id,
           value: group.value || 0
         })
@@ -651,7 +647,7 @@ export async function saveCompetencesAllocation() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            agentId: currentAgent.id,
+            agentId: store.currentAgent.id,
             attributeId: attribute.id,
             value: modifiedValue
           })
@@ -662,7 +658,7 @@ export async function saveCompetencesAllocation() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              agentId: currentAgent.id,
+              agentId: store.currentAgent.id,
               groupId: skillGroup.id,
               value: skillGroup.value || 0
             })
@@ -673,7 +669,7 @@ export async function saveCompetencesAllocation() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                agentId: currentAgent.id,
+                agentId: store.currentAgent.id,
                 skillId: skill.id,
                 value: skill.value || 0
               })
@@ -702,7 +698,7 @@ export async function saveCompetencesAllocation() {
  * @returns {Promise<void>}
  */
 export async function openCompetencesScreen() {
-  if (!currentAgent) {
+  if (!store.currentAgent) {
     showToast('Aucun agent sélectionné.');
     return;
   }
@@ -711,7 +707,7 @@ export async function openCompetencesScreen() {
   try {
     await loadCompetencesData();
     
-    if (!competencesHierarchy || !competencesHierarchy.length) {
+    if (!store.competencesHierarchy || !store.competencesHierarchy.length) {
       showToast('Aucune compétence trouvée pour cet agent.');
       return;
     }
@@ -738,7 +734,7 @@ export async function openCompetencesScreen() {
   if (homeBtnEl) homeBtnEl.classList.remove('hidden');
   
   // Rendre le contenu des compétences (niveau 0)
-  renderCompetencesScreen({ groups: competencesHierarchy });
+  renderCompetencesScreen({ groups: store.competencesHierarchy });
 }
 
 /**
@@ -797,7 +793,7 @@ export function renderCompetencesScreen(data) {
  */
 export function renderCompetencesLevel(level, key, parentKeys = []) {
   const path = [...parentKeys, key];
-  let current = competencesState;
+  let current = store.competencesState;
   for (const k of path) {
     current = current[k];
   }
@@ -817,7 +813,7 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
     backDiv.addEventListener('click', () => {
       if (level === 1) {
         // Back to root (list of main groups)
-        renderCompetencesScreen({ groups: competencesHierarchy });
+        renderCompetencesScreen({ groups: store.competencesHierarchy });
       } else {
         const backLevel = level - 1;
         const backPath = path.slice(0, backLevel);
@@ -830,7 +826,7 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
   if (level === 1) {
     // Niveau des attributs avec stock de points disponibles
     const groupKey = path[0];
-    const group = competencesHierarchy.find(g => g.id == groupKey);
+    const group = store.competencesHierarchy.find(g => g.id == groupKey);
     
     if (!group) {
       console.warn('Group not found for groupKey:', groupKey);
@@ -966,7 +962,7 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
     const groupKey = path[0];
     const attributeKey = path[1];
     
-    const parentGroup = competencesHierarchy.find(g => g.id == groupKey);
+    const parentGroup = store.competencesHierarchy.find(g => g.id == groupKey);
     if (!parentGroup) {
       console.warn('Groupe parent introuvable pour attributeId:', attributeKey);
       competencesContainer.innerHTML = '<div class="competence-empty">Données manquantes. Rechargez la page.</div>';
@@ -1096,7 +1092,7 @@ export function renderCompetencesLevel(level, key, parentKeys = []) {
     const attributeKey = path[1];
     const skillGroupKey = path[2];
     
-    const parentGroup = competencesHierarchy.find(g => g.id == groupKey);
+    const parentGroup = store.competencesHierarchy.find(g => g.id == groupKey);
     if (!parentGroup) {
       console.warn('Groupe parent introuvable pour skillGroupId:', skillGroupKey);
       competencesContainer.innerHTML = '<div class="competence-empty">Données manquantes. Rechargez la page.</div>';

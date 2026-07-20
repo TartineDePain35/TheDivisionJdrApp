@@ -9,9 +9,9 @@
 import { EFFECT_ICONS } from './config.js';
 
 // ============================================================================
-// IMPORTS - State
+// IMPORTS - Store Centralisé
 // ============================================================================
-import { currentAgent, currentAgentMessages, expandedMessageIds, effectsData } from './state.js';
+import { store } from './store.js';
 
 // ============================================================================
 // IMPORTS - Data
@@ -52,6 +52,51 @@ export {
   sanitizeText,
   getEffectIcon,
 };
+
+// ============================================================================
+// ABONNEMENTS AU STORE - Réactivité automatique
+// ============================================================================
+
+// Abonnement aux changements de l'agent courant
+let agentUnsubscribe = null;
+let messagesUnsubscribe = null;
+
+/**
+ * Initialise les abonnements au Store pour la réactivité UI
+ */
+function initStoreSubscriptions() {
+  // Déjà abonné ? Ne rien faire
+  if (agentUnsubscribe || messagesUnsubscribe) return;
+
+  // Abonnement à l'agent courant
+  agentUnsubscribe = store.subscribe((agent) => {
+    if (agent && Object.keys(agent).length > 0) {
+      renderAgent(agent);
+    }
+  }, 'agent');
+
+  // Abonnement aux messages
+  messagesUnsubscribe = store.subscribe((messages) => {
+    renderMessages(messages);
+  }, 'agent');
+}
+
+/**
+ * Désinitialise les abonnements au Store
+ */
+function cleanupStoreSubscriptions() {
+  if (agentUnsubscribe) {
+    agentUnsubscribe();
+    agentUnsubscribe = null;
+  }
+  if (messagesUnsubscribe) {
+    messagesUnsubscribe();
+    messagesUnsubscribe = null;
+  }
+}
+
+// Initialiser les abonnements dès l'import
+initStoreSubscriptions();
 
 // ============================================================================
 // IMPORTS - Elements
@@ -386,7 +431,7 @@ export function openAttributesScreen() {
  * Ouvre l'écran des talents
  */
 export function openTalentsScreen() {
-  if (!currentAgent) {
+  if (!store.currentAgent) {
     showToast('Aucun agent sélectionné.');
     return;
   }
@@ -433,16 +478,17 @@ export async function openMessagesScreen() {
   if (homeBtn) homeBtn.classList.remove('hidden');
   
   // Réinitialiser les messages dépliés
-  expandedMessageIds.clear();
+  store.expandedMessageIds.clear();
   
   // Charger et afficher les messages
   try {
-    renderMessages([]);
+    // Utiliser le setter directement, qui déclenchera le re-rendu via l'abonnement
+    store.setCurrentAgentMessages([]);
     const messages = await loadMessagesForCurrentAgent();
-    renderMessages(messages);
+    store.setCurrentAgentMessages(messages);
   } catch (error) {
     console.error('Erreur lors du chargement des messages:', error);
-    renderMessages([]);
+    store.setCurrentAgentMessages([]);
   }
 }
 
@@ -492,9 +538,11 @@ export function renderInventory(agent) {
  * Met à jour le libellé du bouton Messages
  */
 export function updateMessagesButtonLabel() {
-  if (!messagesBtn || !currentAgentMessages) return;
+  // Utiliser le getter du Store pour obtenir les messages
+  const messages = store.currentAgentMessages;
+  if (!messagesBtn || !messages) return;
   
-  const unreadCount = currentAgentMessages.filter(m => m.is_read !== true).length;
+  const unreadCount = messages.filter(m => m.is_read !== true).length;
   
   if (unreadCount > 0) {
     messagesBtn.textContent = `Messages (${unreadCount})`;
@@ -510,22 +558,21 @@ export function updateMessagesButtonLabel() {
 export function renderMessages(messages) {
   if (!messagesList) return;
 
-  // Mettre à jour currentAgentMessages avec les messages reçus
+  // Utiliser le setter du Store pour mettre à jour les messages
   if (Array.isArray(messages)) {
-    currentAgentMessages.length = 0;
-    currentAgentMessages.push(...messages);
+    store.setCurrentAgentMessages(messages);
+    return; // Le setter déclenchera le re-rendu via l'abonnement
   }
 
-  // Mettre à jour le libellé du bouton Messages
-  updateMessagesButtonLabel();
-
-  if (!currentAgentMessages || !currentAgentMessages.length) {
+  // Si on reçoit un tableau vide ou non défini, forcer le rendu
+  const currentMessages = store.currentAgentMessages;
+  if (!currentMessages || !currentMessages.length) {
     messagesList.innerHTML = '<div class="messages-empty">Aucun message pour le moment.</div>';
     return;
   }
 
-  messagesList.innerHTML = currentAgentMessages.map((message) => {
-    const isExpanded = message.expanded || false;
+  messagesList.innerHTML = currentMessages.map((message) => {
+    const isExpanded = store.expandedMessageIds.has(message.id);
     const fullContent = sanitizeText(String(message.value || '')).replace(/\n/g, '<br>');
     const isUnread = !message.is_read;
 

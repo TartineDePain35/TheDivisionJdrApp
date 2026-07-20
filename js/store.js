@@ -1,11 +1,59 @@
 /**
  * Store Centralisé - Gestion d'état global de l'application
  * Pattern : Singleton + Observer
+ * 
+ * ============================================================================
+ * MIGRATION : Ce module est maintenant le système principal de gestion d'état
+ * ============================================================================
+ * 
+ * Historique :
+ * - Avant : L'état était géré via state.js avec des variables let globales
+ * - Phase 1 : Création de ce Store avec encapsulation complète
+ * - Phase 2 : Migration de tous les modules pour utiliser store.js directement
+ * - Phase 3 : state.js a été renommé en state-deprecated.js puis supprimé
+ * - Phase 4 : Tous les modules utilisent maintenant store.js directement
+ * 
  * Ce module fournit un store unique pour toute l'application avec :
- * - Encapsulation de l'état
- * - Système de souscription aux changements
- * - Getters/Setters contrôlés
- * - Réinitialisation centralisée
+ * - Encapsulation de l'état (tout est privé via #state)
+ * - Système de souscription aux changements (Pattern Observer)
+ * - Getters/Setters contrôlés avec notification automatique
+ * - Réinitialisation centralisée (resetAppState, resetWizardState)
+ * 
+ * ============================================================================
+ * UTILISATION
+ * ============================================================================
+ * 
+ * Import :
+ *   import { store } from './store.js';
+ * 
+ * Accès à l'état :
+ *   store.currentAgent      // Getter pour l'agent courant
+ *   store.weaponsData       // Getter pour les données des armes
+ *   store.competencesState  // Getter pour l'état des compétences
+ * 
+ * Modification de l'état :
+ *   store.setCurrentAgent(agent);
+ *   store.setWeaponsData(data);
+ *   store.updateCurrentAgent('inventory', newInventory);
+ * 
+ * Abonnement aux changements :
+ *   const unsubscribe = store.subscribe((state) => {
+ *     console.log('État mis à jour:', state);
+ *   });
+ *   
+ *   // Abonnement à une section spécifique :
+ *   const unsubscribe = store.subscribe((agent) => {
+ *     console.log('Agent mis à jour:', agent);
+ *   }, 'agent');
+ *   
+ *   // Se désabonner :
+ *   unsubscribe();
+ * 
+ * Réinitialisation :
+ *   store.resetAppState();      // Réinitialise tout l'état
+ *   store.resetWizardState();   // Réinitialise seulement le wizard
+ * 
+ * ============================================================================
  */
 
 // ============================================================================
