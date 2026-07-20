@@ -1,10 +1,84 @@
 /**
- * Module State - Gestion centralisée de l'état global de l'application
- * Contient toutes les variables d'état mutables
+ * Module State - Couche de compatibilité avec le Store centralisé
+ * Ce module délègue maintenant toutes les opérations au Store (store.js)
+ * Il est maintenu pour la compatibilité ascendante avec les modules existants.
+ * 
+ * NOUVEAU : Utilise le Store centralisé (store.js) comme unique source de vérité.
  */
 
 // ============================================================================
-// IMPORTS - Configuration
+// IMPORTS - Store Centralisé
+// ============================================================================
+import {
+  // Agent
+  currentAgent as storeCurrentAgent,
+  currentAgentMessages as storeCurrentAgentMessages,
+  expandedMessageIds as storeExpandedMessageIds,
+  
+  // Données de référence
+  weaponsData as storeWeaponsData,
+  medicalData as storeMedicalData,
+  equipmentData as storeEquipmentData,
+  effectsData as storeEffectsData,
+  talents as storeDataTalents,
+  
+  // Compétences
+  competencesHierarchy as storeCompetencesHierarchy,
+  competencesState as storeCompetencesState,
+  baseStats as storeBaseStats,
+  baseAttributes as storeBaseAttributes,
+  skillsState as storeSkillsState,
+  attributesState as storeAttributesState,
+  
+  // Modifications - Vue simple
+  attributesViewModifications as storeAttributesViewModifications,
+  attributesViewInitialValues as storeAttributesViewInitialValues,
+  
+  // Redistribution - Niveau 1
+  currentAttributeGroup as storeCurrentAttributeGroup,
+  currentAttributeGroupValue as storeCurrentAttributeGroupValue,
+  attributeModifications as storeAttributeModifications,
+  attributeBaseValues as storeAttributeBaseValues,
+  currentAvailablePoints as storeCurrentAvailablePoints,
+  
+  // Groupes de compétences - Niveau 3
+  skillGroupModifications as storeSkillGroupModifications,
+  skillGroupBaseValues as storeSkillGroupBaseValues,
+  currentSkillGroupAvailablePoints as storeCurrentSkillGroupAvailablePoints,
+  
+  // Compétences - Niveau 4
+  skillModifications as storeSkillModifications,
+  skillBaseValues as storeSkillBaseValues,
+  currentSkillAvailablePoints as storeCurrentSkillAvailablePoints,
+  
+  // Inventaire
+  pendingDeleteIndex as storePendingDeleteIndex,
+  
+  // Wizard
+  currentStep as storeCurrentStep,
+  visitedStep as storeVisitedStep,
+  talentIndex as storeTalentIndex,
+  selectedTalent as storeSelectedTalent,
+  talentIdSelected as storeTalentIdSelected,
+  attributeValues as storeAttributeValues,
+  reserveValues as storeReserveValues,
+  // Wizard talents
+  wizardTalents as storeWizardTalents,
+  
+  // Talents (agent actuel)
+  selectedAgentTalent as storeSelectedAgentTalent,
+  selectedAgentTalentId as storeSelectedAgentTalentId,
+  selectedAgentTalentTile as storeSelectedAgentTalentTile,
+  
+  // UI
+  storyCount as storeStoryCount,
+  
+  // Store complet pour les méthodes
+  store,
+} from './store.js';
+
+// ============================================================================
+// IMPORTS - Configuration (pour la compatibilité des fonctions)
 // ============================================================================
 import {
   DEFAULT_ATTRIBUTE_VALUES,
@@ -12,117 +86,86 @@ import {
 } from './config.js';
 
 // ============================================================================
-// ÉTAT GLOBAL - Variables d'état principales
+// EXPORTS - Variables d'état (réexportées depuis le Store)
 // ============================================================================
 
-// Données des équipements
-let weaponsData = [];
-let medicalData = [];
-let equipmentData = [];
+// Agent
+export const currentAgent = storeCurrentAgent;
+export const currentAgentMessages = storeCurrentAgentMessages;
+export const expandedMessageIds = storeExpandedMessageIds;
 
-// Données des effets
-let effectsData = [];
+// Données de référence
+export const weaponsData = storeWeaponsData;
+export const medicalData = storeMedicalData;
+export const equipmentData = storeEquipmentData;
+export const effectsData = storeEffectsData;
+export const talents = storeDataTalents;
 
-// Hiérarchie et état des compétences
-let competencesHierarchy = [];
-let competencesState = {};
+// Compétences - Hiérarchie
+export const competencesHierarchy = storeCompetencesHierarchy;
+export const competencesState = storeCompetencesState;
 
-// Agent courant et messages
-let currentAgent = {};
-let currentAgentMessages = [];
+// État des compétences - Base
+export const baseStats = storeBaseStats;
+export const baseAttributes = storeBaseAttributes;
 
-// État des messages (quels messages sont dépliés)
-let expandedMessageIds = new Set();
+// État des compétences - Réserves
+export const skillsState = storeSkillsState;
+export const attributesState = storeAttributesState;
 
-// État des compétences (stats et attributs)
-let baseStats = {};
-let baseAttributes = {};
-let skillsState = {
-  reserve: 0,
-  stats: {
-    speed: 1,
-    resilience: 1,
-    vigor: 1,
-  },
-};
-let attributesState = {
-  reserve: 0,
-  attributes: {
-    conscience: 1,
-    dexterity: 1,
-    technique: 1,
-  },
-};
+// Modifications - Vue simple
+export const attributesViewModifications = storeAttributesViewModifications;
+export const attributesViewInitialValues = storeAttributesViewInitialValues;
 
-// État pour suivre les modifications dans la vue simple des attributs
-let attributesViewModifications = {};
-let attributesViewInitialValues = {};
+// Redistribution - Niveau 1
+export const currentAttributeGroup = storeCurrentAttributeGroup;
+export const currentAttributeGroupValue = storeCurrentAttributeGroupValue;
+export const attributeModifications = storeAttributeModifications;
+export const attributeBaseValues = storeAttributeBaseValues;
+export const currentAvailablePoints = storeCurrentAvailablePoints;
 
-// État pour la redistribution des points au niveau des attributs (niveau 1)
-let currentAttributeGroup = null;
-let currentAttributeGroupValue = 0;
-let attributeModifications = {};
-let attributeBaseValues = {};
-let currentAvailablePoints = 0;
+// Groupes de compétences - Niveau 3
+export const skillGroupModifications = storeSkillGroupModifications;
+export const skillGroupBaseValues = storeSkillGroupBaseValues;
+export const currentSkillGroupAvailablePoints = storeCurrentSkillGroupAvailablePoints;
 
-// Niveau 3 - Groupes de compétences
-let skillGroupModifications = {};
-let skillGroupBaseValues = {};
-let currentSkillGroupAvailablePoints = 0;
+// Compétences - Niveau 4
+export const skillModifications = storeSkillModifications;
+export const skillBaseValues = storeSkillBaseValues;
+export const currentSkillAvailablePoints = storeCurrentSkillAvailablePoints;
 
-// Niveau 4 - Compétences
-let skillModifications = {};
-let skillBaseValues = {};
-let currentSkillAvailablePoints = 0;
+// Inventaire
+export const pendingDeleteIndex = storePendingDeleteIndex;
 
-// Index de l'item à supprimer
-let pendingDeleteIndex = null;
+// Wizard
+export const currentStep = storeCurrentStep;
+export const visitedStep = storeVisitedStep;
+export const talentIndex = storeTalentIndex;
+export const selectedTalent = storeSelectedTalent;
+export const talentIdSelected = storeTalentIdSelected;
+export const attributeValues = storeAttributeValues;
+export const reserveValues = storeReserveValues;
+export const wizardTalents = storeWizardTalents;
 
-// ============================================================================
-// ÉTAT WIZARD - Création d'agent
-// ============================================================================
+// Talents (agent actuel)
+export const selectedAgentTalent = storeSelectedAgentTalent;
+export const selectedAgentTalentId = storeSelectedAgentTalentId;
+export const selectedAgentTalentTile = storeSelectedAgentTalentTile;
 
-let currentStep = 1;
-let visitedStep = 1;
-let talents = [];
-let talentIndex = 0;
-let selectedTalent = null;
-let talentIdSelected = null;
-
-// Valeurs des attributs pendant la création
-let attributeValues = {
-  speed: 1,
-  resilience: 1,
-  vigor: 1,
-  conscience: 1,
-  dexterity: 1,
-  technique: 1,
-};
-
-// Valeurs de réserve pendant la création
-let reserveValues = {
-  stats: DEFAULT_RESERVE_VALUES.stats,
-  attrs: DEFAULT_RESERVE_VALUES.attrs,
-};
+// UI
+export const storyCount = storeStoryCount;
 
 // ============================================================================
-// ÉTAT TALENTS - Sélection des talents pour l'agent actuel
+// EXPORTS - Fonctions Setter (délégation au Store)
 // ============================================================================
 
-let selectedAgentTalent = null;
-let selectedAgentTalentId = null;
-let selectedAgentTalentTile = null;
-
-// ============================================================================
-// FONCTIONS SETTER POUR LES TALENTS
-// ============================================================================
-
+// Setters pour les talents (agent actuel)
 /**
  * Définit le talent sélectionné pour l'agent
  * @param {Object|null} talent - Talent sélectionné ou null
  */
 export function setSelectedAgentTalent(talent) {
-  selectedAgentTalent = talent;
+  store.setSelectedAgentTalent(talent);
 }
 
 /**
@@ -130,7 +173,7 @@ export function setSelectedAgentTalent(talent) {
  * @param {string|null} id - ID du talent ou null
  */
 export function setSelectedAgentTalentId(id) {
-  selectedAgentTalentId = id;
+  store.setSelectedAgentTalentId(id);
 }
 
 /**
@@ -138,28 +181,16 @@ export function setSelectedAgentTalentId(id) {
  * @param {HTMLElement|null} tile - Élément DOM ou null
  */
 export function setSelectedAgentTalentTile(tile) {
-  selectedAgentTalentTile = tile;
+  store.setSelectedAgentTalentTile(tile);
 }
 
-/**
- * Réinitialise la sélection des talents
- */
-export function resetSelectedAgentTalent() {
-  selectedAgentTalent = null;
-  selectedAgentTalentId = null;
-  selectedAgentTalentTile = null;
-}
-
-// ============================================================================
-// FONCTIONS SETTER POUR LE WIZARD
-// ============================================================================
-
+// Setters pour le wizard
 /**
  * Définit l'étape courante du wizard
  * @param {number} step - Numéro de l'étape
  */
 export function setCurrentStep(step) {
-  currentStep = step;
+  store.setCurrentStep(step);
 }
 
 /**
@@ -167,7 +198,7 @@ export function setCurrentStep(step) {
  * @param {number} step - Numéro de l'étape
  */
 export function setVisitedStep(step) {
-  visitedStep = Math.max(visitedStep, step);
+  store.setVisitedStep(step);
 }
 
 /**
@@ -175,7 +206,7 @@ export function setVisitedStep(step) {
  * @param {number} index - Index du talent
  */
 export function setTalentIndex(index) {
-  talentIndex = index;
+  store.setTalentIndex(index);
 }
 
 /**
@@ -183,7 +214,7 @@ export function setTalentIndex(index) {
  * @param {Object|null} talent - Talent sélectionné
  */
 export function setSelectedTalent(talent) {
-  selectedTalent = talent;
+  store.setSelectedTalent(talent);
 }
 
 /**
@@ -191,155 +222,96 @@ export function setSelectedTalent(talent) {
  * @param {string|null} id - ID du talent
  */
 export function setTalentIdSelected(id) {
-  talentIdSelected = id;
+  store.setTalentIdSelected(id);
 }
 
 // ============================================================================
-// COMPTEURS DE STORIES
+// EXPORTS - Fonctions de réinitialisation (délégation au Store)
 // ============================================================================
 
-let storyCount = null; // Will be set from DOM
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
-
-export {
-  // Données
-  weaponsData,
-  medicalData,
-  equipmentData,
-  effectsData,
-  competencesHierarchy,
-  competencesState,
-  
-  // Agent
-  currentAgent,
-  currentAgentMessages,
-  expandedMessageIds,
-  
-  // État des compétences
-  baseStats,
-  baseAttributes,
-  skillsState,
-  attributesState,
-  
-  // Modifications des attributs (vue simple)
-  attributesViewModifications,
-  attributesViewInitialValues,
-  
-  // Redistribution des points (niveau 1)
-  currentAttributeGroup,
-  currentAttributeGroupValue,
-  attributeModifications,
-  attributeBaseValues,
-  currentAvailablePoints,
-  
-  // Groupes de compétences (niveau 3)
-  skillGroupModifications,
-  skillGroupBaseValues,
-  currentSkillGroupAvailablePoints,
-  
-  // Compétences (niveau 4)
-  skillModifications,
-  skillBaseValues,
-  currentSkillAvailablePoints,
-  
-  // Inventaire
-  pendingDeleteIndex,
-  
-  // Wizard
-  currentStep,
-  visitedStep,
-  talents,
-  talentIndex,
-  selectedTalent,
-  talentIdSelected,
-  attributeValues,
-  reserveValues,
-  
-  // Talents (agent actuel)
-  selectedAgentTalent,
-  selectedAgentTalentId,
-  selectedAgentTalentTile,
-  
-  // Story count
-  storyCount,
-};
-
-// ============================================================================
-// FONCTIONS DE RÉINITIALISATION
-// ============================================================================
+/**
+ * Réinitialise la sélection des talents
+ */
+export function resetSelectedAgentTalent() {
+  store.resetSelectedAgentTalent();
+}
 
 /**
  * Réinitialise l'état du wizard de création d'agent
  */
 export function resetWizardState() {
-  currentStep = 1;
-  visitedStep = 1;
-  talentIndex = 0;
-  selectedTalent = null;
-  talentIdSelected = null;
-  reserveValues.stats = DEFAULT_RESERVE_VALUES.stats;
-  reserveValues.attrs = DEFAULT_RESERVE_VALUES.attrs;
-  
-  Object.keys(attributeValues).forEach((key) => {
-    attributeValues[key] = DEFAULT_ATTRIBUTE_VALUES[key] || 1;
-  });
+  store.resetWizardState();
 }
 
 /**
  * Réinitialise l'état global de l'application
  */
 export function resetAppState() {
-  currentAgent = {};
-  currentAgentMessages = [];
-  expandedMessageIds = new Set();
-  weaponsData = [];
-  medicalData = [];
-  equipmentData = [];
-  effectsData = [];
-  competencesHierarchy = [];
-  competencesState = {};
-  pendingDeleteIndex = null;
-  
-  // Réinitialiser l'état des compétences
-  baseStats = {};
-  baseAttributes = {};
-  skillsState = {
-    reserve: 0,
-    stats: {
-      speed: 1,
-      resilience: 1,
-      vigor: 1,
-    },
-  };
-  attributesState = {
-    reserve: 0,
-    attributes: {
-      conscience: 1,
-      dexterity: 1,
-      technique: 1,
-    },
-  };
-  
-  attributesViewModifications = {};
-  attributesViewInitialValues = {};
-  currentAttributeGroup = null;
-  currentAttributeGroupValue = 0;
-  attributeModifications = {};
-  attributeBaseValues = {};
-  currentAvailablePoints = 0;
-  skillGroupModifications = {};
-  skillGroupBaseValues = {};
-  currentSkillGroupAvailablePoints = 0;
-  skillModifications = {};
-  skillBaseValues = {};
-  currentSkillAvailablePoints = 0;
-  
-  resetWizardState();
-  
-  // Réinitialiser les talents
-  resetSelectedAgentTalent();
-  talents = [];
+  store.resetAppState();
 }
+
+// ============================================================================
+// EXPORTS - Store complet (pour les modules qui veulent l'utiliser directement)
+// ============================================================================
+export { store };
+
+// ============================================================================
+// EXPORTS - Fonctions utilitaires du Store
+// ============================================================================
+export {
+  // S'abonner aux changements
+  subscribe: store.subscribe,
+  unsubscribe: store.unsubscribe,
+  // Accès complet à l'état
+  getState: store.getState,
+  // Setters pour l'agent
+  setCurrentAgent: store.setCurrentAgent,
+  setCurrentAgentMessages: store.setCurrentAgentMessages,
+  setExpandedMessageIds: store.setExpandedMessageIds,
+  addAgentMessages: store.addAgentMessages,
+  addExpandedMessageId: store.addExpandedMessageId,
+  removeExpandedMessageId: store.removeExpandedMessageId,
+  updateCurrentAgent: store.updateCurrentAgent,
+  // Setters pour les données
+  setWeaponsData: store.setWeaponsData,
+  setMedicalData: store.setMedicalData,
+  setEquipmentData: store.setEquipmentData,
+  setEffectsData: store.setEffectsData,
+  setTalents: store.setTalents,
+  setWizardTalents: store.setWizardTalents,
+  // Setters pour les compétences
+  setCompetencesHierarchy: store.setCompetencesHierarchy,
+  setCompetencesState: store.setCompetencesState,
+  setBaseStats: store.setBaseStats,
+  setBaseAttributes: store.setBaseAttributes,
+  setSkillsState: store.setSkillsState,
+  setAttributesState: store.setAttributesState,
+  // Setters pour les modifications
+  setAttributesViewModifications: store.setAttributesViewModifications,
+  setAttributesViewInitialValues: store.setAttributesViewInitialValues,
+  // Setters pour la redistribution
+  setCurrentAttributeGroup: store.setCurrentAttributeGroup,
+  setCurrentAttributeGroupValue: store.setCurrentAttributeGroupValue,
+  setAttributeModifications: store.setAttributeModifications,
+  setAttributeBaseValues: store.setAttributeBaseValues,
+  setCurrentAvailablePoints: store.setCurrentAvailablePoints,
+  // Setters pour les groupes de compétences
+  setSkillGroupModifications: store.setSkillGroupModifications,
+  setSkillGroupBaseValues: store.setSkillGroupBaseValues,
+  setCurrentSkillGroupAvailablePoints: store.setCurrentSkillGroupAvailablePoints,
+  // Setters pour les compétences niveau 4
+  setSkillModifications: store.setSkillModifications,
+  setSkillBaseValues: store.setSkillBaseValues,
+  setCurrentSkillAvailablePoints: store.setCurrentSkillAvailablePoints,
+  // Setters pour l'inventaire
+  setPendingDeleteIndex: store.setPendingDeleteIndex,
+  // Setters pour le wizard
+  setAttributeValues: store.setAttributeValues,
+  setReserveValues: store.setReserveValues,
+  // Setters pour les talents
+  setSelectedAgentTalent: store.setSelectedAgentTalent,
+  setSelectedAgentTalentId: store.setSelectedAgentTalentId,
+  setSelectedAgentTalentTile: store.setSelectedAgentTalentTile,
+  // Setter pour UI
+  setStoryCount: store.setStoryCount,
+};
