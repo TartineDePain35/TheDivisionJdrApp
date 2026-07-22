@@ -4,47 +4,9 @@
  */
 
 // ============================================================================
-// IMPORTS - State
+// IMPORTS - Store Centralisé
 // ============================================================================
-import {
-  currentAgent,
-  currentAgentMessages,
-  expandedMessageIds,
-  weaponsData,
-  medicalData,
-  equipmentData,
-  competencesHierarchy,
-  competencesState,
-  baseStats,
-  baseAttributes,
-  skillsState,
-  attributesState,
-  attributesViewModifications,
-  attributesViewInitialValues,
-  pendingDeleteIndex,
-  talents,
-  talentIndex,
-  selectedTalent,
-  talentIdSelected,
-  currentStep,
-  visitedStep,
-  attributeValues,
-  reserveValues,
-  selectedAgentTalent,
-  selectedAgentTalentId,
-  selectedAgentTalentTile,
-  storyCount,
-  resetWizardState,
-  setSelectedAgentTalent,
-  setSelectedAgentTalentId,
-  setSelectedAgentTalentTile,
-  resetSelectedAgentTalent,
-  setCurrentStep,
-  setVisitedStep,
-  setTalentIndex,
-  setSelectedTalent,
-  setTalentIdSelected,
-} from './state.js';
+import { store } from './store.js';
 
 // ============================================================================
 // IMPORTS - Configuration
@@ -152,7 +114,6 @@ import {
   loadMedicalData,
   loadEquipmentData,
   loadMessagesForCurrentAgent,
-  loadTalents as loadTalentsData,
   requestJson,
 } from './data.js';
 
@@ -174,7 +135,7 @@ import {
  * Réinitialise le wizard
  */
 export function resetWizard() {
-  resetWizardState();
+  store.resetWizardState();
   
   Object.values(agentInputs).forEach((input) => {
     if (input) input.value = '';
@@ -188,9 +149,9 @@ export function resetWizard() {
   showWizardStep(1);
   
   // Pré-sélectionner le premier talent par défaut
-  if (talents.length > 0) {
-    setSelectedTalent(talents[0]);
-    setTalentIdSelected(String(talents[0].id));
+  if (store.talents.length > 0) {
+    store.setSelectedTalent(store.talents[0]);
+    store.setTalentIdSelected(String(store.talents[0].id));
   }
 }
 
@@ -217,8 +178,8 @@ function updateWizardStepNav() {
   const buttons = Array.from(wizardStepNav.querySelectorAll('button[data-step]'));
   buttons.forEach((button) => {
     const step = Number(button.dataset.step);
-    button.classList.toggle('active-step-nav', step === currentStep);
-    button.disabled = step > visitedStep;
+    button.classList.toggle('active-step-nav', step === store.currentStep);
+    button.disabled = step > store.visitedStep;
   });
 }
 
@@ -228,8 +189,8 @@ function updateWizardStepNav() {
 function updateReserveDisplay() {
   const statReserve = document.getElementById('statReserve');
   const attrReserve = document.getElementById('attrReserve');
-  if (statReserve) statReserve.textContent = String(reserveValues.stats);
-  if (attrReserve) attrReserve.textContent = String(reserveValues.attrs);
+  if (statReserve) statReserve.textContent = String(store.reserveValues.stats);
+  if (attrReserve) attrReserve.textContent = String(store.reserveValues.attrs);
 }
 
 /**
@@ -243,13 +204,13 @@ function updatePointButtons() {
     const attr = button.dataset.attr;
     if (!attr) return;
     const reserveKey = ['speed', 'resilience', 'vigor'].includes(attr) ? 'stats' : 'attrs';
-    button.disabled = reserveValues[reserveKey] <= 0;
+    button.disabled = store.reserveValues[reserveKey] <= 0;
   });
 
   minusButtons.forEach((button) => {
     const attr = button.dataset.attr;
     if (!attr) return;
-    button.disabled = attributeValues[attr] <= 1;
+    button.disabled = store.attributeValues[attr] <= 1;
   });
 }
 
@@ -261,16 +222,24 @@ function updatePointButtons() {
 export function changeAttribute(attr, action) {
   const reserveKey = ['speed', 'resilience', 'vigor'].includes(attr) ? 'stats' : 'attrs';
   if (action === 'increase') {
-    if (reserveValues[reserveKey] <= 0) return;
-    reserveValues[reserveKey] -= 1;
-    attributeValues[attr] += 1;
+    if (store.reserveValues[reserveKey] <= 0) return;
+    const newReserveValues = { ...store.reserveValues };
+    newReserveValues[reserveKey] -= 1;
+    const newAttributeValues = { ...store.attributeValues };
+    newAttributeValues[attr] += 1;
+    store.setReserveValues(newReserveValues);
+    store.setAttributeValues(newAttributeValues);
   } else {
-    if (attributeValues[attr] <= 1) return;
-    attributeValues[attr] -= 1;
-    reserveValues[reserveKey] += 1;
+    if (store.attributeValues[attr] <= 1) return;
+    const newAttributeValues = { ...store.attributeValues };
+    newAttributeValues[attr] -= 1;
+    const newReserveValues = { ...store.reserveValues };
+    newReserveValues[reserveKey] += 1;
+    store.setAttributeValues(newAttributeValues);
+    store.setReserveValues(newReserveValues);
   }
   const element = document.getElementById(`${attr}Value`);
-  if (element) element.textContent = String(attributeValues[attr]);
+  if (element) element.textContent = String(store.attributeValues[attr]);
   updateReserveDisplay();
   updatePointButtons();
   updateWizardButton();
@@ -299,13 +268,13 @@ function validateStep(step) {
     );
   }
   if (step === 3) {
-    return reserveValues.stats === 0;
+    return store.reserveValues.stats === 0;
   }
   if (step === 4) {
-    return reserveValues.attrs === 0;
+    return store.reserveValues.attrs === 0;
   }
   if (step === 5) {
-    return talentIdSelected !== null;
+    return store.talentIdSelected !== null;
   }
   if (step === 6) {
     return agentInputs.story.value.trim().length > 0;
@@ -331,8 +300,8 @@ function validatePasswordStep() {
 function updateWizardButton() {
   if (!wizardNext) return;
   
-  wizardNext.disabled = !validateStep(currentStep);
-  wizardNext.textContent = currentStep === 7 ? 'Valider votre agent' : 'Suivant';
+  wizardNext.disabled = !validateStep(store.currentStep);
+  wizardNext.textContent = store.currentStep === 7 ? 'Valider votre agent' : 'Suivant';
 }
 
 /**
@@ -341,8 +310,8 @@ function updateWizardButton() {
  */
 function showWizardStep(step) {
   const allSteps = Array.from(wizardContent.querySelectorAll('.wizard-step'));
-  setCurrentStep(step);
-  setVisitedStep(step);
+  store.setCurrentStep(step);
+  store.setVisitedStep(step);
   allSteps.forEach((element) => {
     element.classList.toggle('active-step', Number(element.dataset.step) === step);
   });
@@ -354,29 +323,17 @@ function showWizardStep(step) {
   scrollToTop();
 }
 
-/**
- * Charge les talents pour le wizard
- * @returns {Promise<void>}
- */
-export async function loadTalents() {
-  try {
-    const result = await requestJson('/api/talents');
-    talents.length = 0;
-    talents.push(...(Array.isArray(result) ? result : (result?.talents || result?.data || [])));
-    setTalentIndex(0);
-    setSelectedTalent(null);
-    setTalentIdSelected(null);
-  } catch {
-    talents.length = 0;
-  }
-  renderTalent();
-}
 
 /**
  * Rendu du talent courant dans le wizard
  */
 function renderTalent() {
-  console.log('renderTalent() appelé - talentIndex:', talentIndex, 'talents.length:', talents.length, 'selectedTalent:', selectedTalent);
+  // Utiliser les getters du Store
+  const talents = store.talents;
+  const index = store.talentIndex;
+  const selected = store.selectedTalent;
+  
+  console.log('renderTalent() appelé - talentIndex:', index, 'talents.length:', talents.length, 'selectedTalent:', selected);
   
   // Obtenir les éléments directement pour éviter les problèmes de timing des modules
   const talentTitle = document.getElementById('talentTitle');
@@ -386,7 +343,7 @@ function renderTalent() {
     console.log('Erreur: talentTitle ou talentDescription non trouvé dans le DOM');
     return;
   }
-  const talent = talents[talentIndex] || selectedTalent;
+  const talent = talents[index] || selected;
   console.log('Talent à afficher:', talent);
   if (!talent) {
     talentTitle.textContent = 'Chargement des talents...';
@@ -402,8 +359,8 @@ function renderTalent() {
  * @param {number} direction - Direction (1 ou -1)
  */
 export function navigateTalent(direction) {
-  if (!talents.length) return;
-  setTalentIndex((talentIndex + direction + talents.length) % talents.length);
+  if (!store.talents.length) return;
+  store.setTalentIndex((store.talentIndex + direction + store.talents.length) % store.talents.length);
   renderTalent();
 }
 
@@ -411,11 +368,11 @@ export function navigateTalent(direction) {
  * Sélectionne un talent
  */
 export function chooseTalent() {
-  if (!talents.length) return;
-  const talent = talents[talentIndex];
+  if (!store.talents.length) return;
+  const talent = store.talents[store.talentIndex];
   if (!talent || talent.id === null || talent.id === undefined) return;
-  setSelectedTalent(talent);
-  setTalentIdSelected(String(talent.id));
+  store.setSelectedTalent(talent);
+  store.setTalentIdSelected(String(talent.id));
   showWizardStep(6);
 }
 
@@ -433,16 +390,16 @@ export function getWizardData() {
     familyStatus: agentInputs.familyStatus.value,
     children: Number(agentInputs.children.value),
     stats: {
-      speed: attributeValues.speed,
-      resilience: attributeValues.resilience,
-      vigor: attributeValues.vigor,
+      speed: store.attributeValues.speed,
+      resilience: store.attributeValues.resilience,
+      vigor: store.attributeValues.vigor,
     },
     attributes: {
-      conscience: attributeValues.conscience,
-      dexterity: attributeValues.dexterity,
-      technique: attributeValues.technique,
+      conscience: store.attributeValues.conscience,
+      dexterity: store.attributeValues.dexterity,
+      technique: store.attributeValues.technique,
     },
-    talents: selectedTalent ? [{...selectedTalent}] : [],
+    talents: store.selectedTalent ? [{...store.selectedTalent}] : [],
     story: agentInputs.story.value.trim(),
     password: agentInputs.password.value,
   };
@@ -500,7 +457,7 @@ export function resetAddItemModal() {
  * Construit les options de type d'arme
  */
 function buildWeaponTypeOptions() {
-  const types = [...new Set(weaponsData.map((weapon) => weapon.type))].filter(Boolean);
+  const types = [...new Set(store.weaponsData.map((weapon) => weapon.type))].filter(Boolean);
   if (weaponTypeSelect) {
     weaponTypeSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...types.map((type) => `<option value="${type}">${type}</option>`)].join('');
     weaponTypeSelect.disabled = false;
@@ -529,7 +486,7 @@ function buildWeaponTypeOptions() {
  */
 function buildWeaponCategoryOptions(type) {
   const categories = [
-    ...new Set(weaponsData.filter((weapon) => weapon.type === type).map((weapon) => weapon.category))
+    ...new Set(store.weaponsData.filter((weapon) => weapon.type === type).map((weapon) => weapon.category))
   ].filter(Boolean);
   if (weaponCategorySelect) {
     weaponCategorySelect.innerHTML = ['<option value="">Sélectionnez</option>', ...categories.map((category) => `<option value="${category}">${category}</option>`)].join('');
@@ -556,7 +513,7 @@ function buildWeaponCategoryOptions(type) {
  */
 function buildWeaponClassOptions(type, category) {
   const classes = [
-    ...new Set(weaponsData.filter((weapon) => weapon.type === type && weapon.category === category).map((weapon) => weapon.class))
+    ...new Set(store.weaponsData.filter((weapon) => weapon.type === type && weapon.category === category).map((weapon) => weapon.class))
   ].filter(Boolean);
   if (weaponClassSelect) {
     weaponClassSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...classes.map((className) => `<option value="${className}">${className}</option>`)].join('');
@@ -580,7 +537,7 @@ function buildWeaponClassOptions(type, category) {
  */
 function buildWeaponNameOptions(type, category, className) {
   const names = [
-    ...new Set(weaponsData.filter((weapon) => weapon.type === type && weapon.category === category && weapon.class === className).map((weapon) => weapon.name))
+    ...new Set(store.weaponsData.filter((weapon) => weapon.type === type && weapon.category === category && weapon.class === className).map((weapon) => weapon.name))
   ].filter(Boolean);
   if (weaponNameSelect) {
     weaponNameSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...names.map((name) => `<option value="${name}">${name}</option>`)].join('');
@@ -596,7 +553,7 @@ function buildWeaponNameOptions(type, category, className) {
  * Construit les options de type médical
  */
 function buildMedicalTypeOptions() {
-  const types = [...new Set(medicalData.map((item) => item.type))].filter(Boolean);
+  const types = [...new Set(store.medicalData.map((item) => item.type))].filter(Boolean);
   if (medicalTypeSelect) {
     medicalTypeSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...types.map((type) => `<option value="${type}">${type}</option>`)].join('');
     medicalTypeSelect.disabled = false;
@@ -620,7 +577,7 @@ function buildMedicalTypeOptions() {
  * @param {string} type - Type médical
  */
 function buildMedicalCategoryOptions(type) {
-  const categories = [...new Set(medicalData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
+  const categories = [...new Set(store.medicalData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
   if (medicalCategorySelect) {
     medicalCategorySelect.innerHTML = ['<option value="">Sélectionnez</option>', ...categories.map((category) => `<option value="${category}">${category}</option>`)].join('');
     medicalCategorySelect.disabled = false;
@@ -641,7 +598,7 @@ function buildMedicalCategoryOptions(type) {
  * @param {string} category - Catégorie médicale
  */
 function buildMedicalNameOptions(type, category) {
-  const names = medicalData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
+  const names = store.medicalData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
   if (medicalNameSelect) {
     medicalNameSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...names.map((name) => `<option value="${name}">${name}</option>`)].join('');
     medicalNameSelect.disabled = false;
@@ -656,7 +613,7 @@ function buildMedicalNameOptions(type, category) {
  * Construit les options de type d'équipement
  */
 function buildEquipmentTypeOptions() {
-  const types = [...new Set(equipmentData.map((item) => item.type))].filter(Boolean);
+  const types = [...new Set(store.equipmentData.map((item) => item.type))].filter(Boolean);
   if (equipmentTypeSelect) {
     equipmentTypeSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...types.map((type) => `<option value="${type}">${type}</option>`)].join('');
     equipmentTypeSelect.disabled = false;
@@ -680,7 +637,7 @@ function buildEquipmentTypeOptions() {
  * @param {string} type - Type d'équipement
  */
 function buildEquipmentCategoryOptions(type) {
-  const categories = [...new Set(equipmentData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
+  const categories = [...new Set(store.equipmentData.filter((item) => item.type === type).map((item) => item.category))].filter(Boolean);
   if (equipmentCategorySelect) {
     equipmentCategorySelect.innerHTML = ['<option value="">Sélectionnez</option>', ...categories.map((category) => `<option value="${category}">${category}</option>`)].join('');
     equipmentCategorySelect.disabled = false;
@@ -701,7 +658,7 @@ function buildEquipmentCategoryOptions(type) {
  * @param {string} category - Catégorie d'équipement
  */
 function buildEquipmentNameOptions(type, category) {
-  const names = equipmentData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
+  const names = store.equipmentData.filter((item) => item.type === type && item.category === category).map((item) => item.name);
   if (equipmentNameSelect) {
     equipmentNameSelect.innerHTML = ['<option value="">Sélectionnez</option>', ...names.map((name) => `<option value="${name}">${name}</option>`)].join('');
     equipmentNameSelect.disabled = false;
@@ -812,7 +769,7 @@ export function openAddItemModal() {
  * @returns {Promise<void>}
  */
 async function addSelectedWeaponToInventory() {
-  if (!currentAgent || !addItemTypeSelect || !weaponTypeSelect || !weaponCategorySelect || 
+  if (!store.currentAgent || !addItemTypeSelect || !weaponTypeSelect || !weaponCategorySelect || 
       !weaponClassSelect || !weaponNameSelect) return;
   if (addItemTypeSelect.value !== 'Armes') return;
   
@@ -821,7 +778,7 @@ async function addSelectedWeaponToInventory() {
   const selectedClass = weaponClassSelect.value;
   const selectedName = weaponNameSelect.value;
   
-  const weapon = weaponsData.find(
+  const weapon = store.weaponsData.find(
     (item) =>
       item.type === selectedType &&
       item.category === selectedCategory &&
@@ -831,7 +788,8 @@ async function addSelectedWeaponToInventory() {
   
   if (!weapon) return;
   
-  currentAgent.inventory = [
+  const currentAgent = store.currentAgent;
+  const newInventory = [
     ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
     { 
       name: weapon.name, 
@@ -841,8 +799,9 @@ async function addSelectedWeaponToInventory() {
       class: weapon.class 
     },
   ];
+  store.updateCurrentAgent('inventory', newInventory);
   
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   hideModal(addItemModal);
   await persistCurrentAgent();
   showToast(`Objet "${weapon.name}" ajouté à l'inventaire.`);
@@ -853,14 +812,14 @@ async function addSelectedWeaponToInventory() {
  * @returns {Promise<void>}
  */
 async function addSelectedMedicalToInventory() {
-  if (!currentAgent || !addItemTypeSelect || !medicalTypeSelect || !medicalCategorySelect || !medicalNameSelect) return;
+  if (!store.currentAgent || !addItemTypeSelect || !medicalTypeSelect || !medicalCategorySelect || !medicalNameSelect) return;
   if (addItemTypeSelect.value !== 'Medical') return;
   
   const selectedType = medicalTypeSelect.value;
   const selectedCategory = medicalCategorySelect.value;
   const selectedName = medicalNameSelect.value;
   
-  const medical = medicalData.find(
+  const medical = store.medicalData.find(
     (item) =>
       item.type === selectedType &&
       item.category === selectedCategory &&
@@ -869,7 +828,8 @@ async function addSelectedMedicalToInventory() {
   
   if (!medical) return;
   
-  currentAgent.inventory = [
+  const currentAgent = store.currentAgent;
+  const newInventory = [
     ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
     { 
       name: medical.name, 
@@ -878,8 +838,9 @@ async function addSelectedMedicalToInventory() {
       type: medical.type 
     },
   ];
+  store.updateCurrentAgent('inventory', newInventory);
   
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   hideModal(addItemModal);
   await persistCurrentAgent();
   showToast(`Objet "${medical.name}" ajouté à l'inventaire.`);
@@ -890,14 +851,14 @@ async function addSelectedMedicalToInventory() {
  * @returns {Promise<void>}
  */
 async function addSelectedEquipmentToInventory() {
-  if (!currentAgent || !addItemTypeSelect || !equipmentTypeSelect || !equipmentCategorySelect || !equipmentNameSelect) return;
+  if (!store.currentAgent || !addItemTypeSelect || !equipmentTypeSelect || !equipmentCategorySelect || !equipmentNameSelect) return;
   if (addItemTypeSelect.value !== 'Equipement') return;
   
   const selectedType = equipmentTypeSelect.value;
   const selectedCategory = equipmentCategorySelect.value;
   const selectedName = equipmentNameSelect.value;
   
-  const equipment = equipmentData.find(
+  const equipment = store.equipmentData.find(
     (item) =>
       item.type === selectedType &&
       item.category === selectedCategory &&
@@ -906,7 +867,8 @@ async function addSelectedEquipmentToInventory() {
   
   if (!equipment) return;
   
-  currentAgent.inventory = [
+  const currentAgent = store.currentAgent;
+  const newInventory = [
     ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
     { 
       name: equipment.name, 
@@ -915,8 +877,9 @@ async function addSelectedEquipmentToInventory() {
       type: equipment.type 
     },
   ];
+  store.updateCurrentAgent('inventory', newInventory);
   
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   hideModal(addItemModal);
   await persistCurrentAgent();
   showToast(`Objet "${equipment.name}" ajouté à l'inventaire.`);
@@ -927,7 +890,7 @@ async function addSelectedEquipmentToInventory() {
  * @returns {Promise<void>}
  */
 async function addSelectedOtherToInventory() {
-  if (!currentAgent || !otherItemName || !otherItemWeight) return;
+  if (!store.currentAgent || !otherItemName || !otherItemWeight) return;
   
   const name = otherItemName.value.trim();
   const description = otherItemDescription?.value?.trim() || '';
@@ -938,12 +901,14 @@ async function addSelectedOtherToInventory() {
     return;
   }
   
-  currentAgent.inventory = [
+  const currentAgent = store.currentAgent;
+  const newInventory = [
     ...(Array.isArray(currentAgent.inventory) ? currentAgent.inventory : []),
     { name, description, weight: Number(weight), category: 'Autre' },
   ];
+  store.updateCurrentAgent('inventory', newInventory);
   
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   hideModal(addItemModal);
   await persistCurrentAgent();
   showToast(`Objet "${name}" ajouté à l'inventaire.`);
@@ -958,7 +923,7 @@ async function addSelectedOtherToInventory() {
  * @param {number} index - Index de l'item
  */
 export function openDeleteItem(index) {
-  pendingDeleteIndex = index;
+  store.setPendingDeleteIndex(index);
   showModal(deleteItemModal);
 }
 
@@ -967,13 +932,15 @@ export function openDeleteItem(index) {
  * @returns {Promise<void>}
  */
 async function confirmDeleteItem() {
-  if (pendingDeleteIndex === null || !currentAgent) return;
+  if (store.pendingDeleteIndex === null || !store.currentAgent) return;
   
-  currentAgent.inventory = currentAgent.inventory.filter((_, index) => index !== pendingDeleteIndex);
-  pendingDeleteIndex = null;
+  const currentAgent = store.currentAgent;
+  const newInventory = currentAgent.inventory.filter((_, index) => index !== store.pendingDeleteIndex);
+  store.setPendingDeleteIndex(null);
+  store.updateCurrentAgent('inventory', newInventory);
   
   hideModal(deleteItemModal);
-  renderInventory(currentAgent);
+  renderInventory(store.currentAgent);
   await persistCurrentAgent();
   showToast('Objet supprimé de votre inventaire.');
 }
@@ -982,7 +949,7 @@ async function confirmDeleteItem() {
  * Annule la suppression
  */
 export function cancelDeleteItem() {
-  pendingDeleteIndex = null;
+  store.setPendingDeleteIndex(null);
   hideModal(deleteItemModal);
 }
 
@@ -996,7 +963,7 @@ export function cancelDeleteItem() {
  * @returns {Promise<void>}
  */
 export async function openItemDetails(index) {
-  const item = currentAgent?.inventory?.[index];
+  const item = store.currentAgent?.inventory?.[index];
   if (!item || !itemDetailsContent) return;
 
   let source = item;
@@ -1007,7 +974,7 @@ export async function openItemDetails(index) {
   // Chercher dans les armes
   if (item.class || item.type === 'Armes légères' || item.category?.includes('Armes')) {
     await loadWeaponsData();
-    const weapon = weaponsData.find((weaponItem) => {
+    const weapon = store.weaponsData.find((weaponItem) => {
       const sameName = weaponItem.name === item.name;
       const sameType = !item.type || weaponItem.type === item.type;
       const sameCategory = !item.category || weaponItem.category === item.category;
@@ -1023,7 +990,7 @@ export async function openItemDetails(index) {
   // Chercher dans le médical
   if (!isWeapon && (item.range || ['Injection', 'Electronique', 'Application'].includes(item.category))) {
     await loadMedicalData();
-    const medical = medicalData.find((medicalItem) => {
+    const medical = store.medicalData.find((medicalItem) => {
       const sameName = medicalItem.name === item.name;
       const sameType = !item.type || medicalItem.type === item.type;
       const sameCategory = !item.category || medicalItem.category === item.category;
@@ -1038,7 +1005,7 @@ export async function openItemDetails(index) {
   // Chercher dans l'équipement
   if (!isWeapon && !isMedical && item.effect && ['Armure'].includes(item.category)) {
     await loadEquipmentData();
-    const equipment = equipmentData.find((equipmentItem) => {
+    const equipment = store.equipmentData.find((equipmentItem) => {
       const sameName = equipmentItem.name === item.name;
       const sameType = !item.type || equipmentItem.type === item.type;
       const sameCategory = !item.category || equipmentItem.category === item.category;
@@ -1116,23 +1083,24 @@ export function closeItemDetails() {
 export function selectAvailableTalent(talent, tile) {
   if (!talent || !talent.id) return;
 
-  if (selectedAgentTalentId === String(talent.id)) {
-    if (selectedAgentTalentTile) {
-      selectedAgentTalentTile.classList.remove('selected');
+  if (store.selectedAgentTalentId === String(talent.id)) {
+    if (store.selectedAgentTalentTile) {
+      store.selectedAgentTalentTile.classList.remove('selected');
     }
-    resetSelectedAgentTalent();
+    store.resetSelectedAgentTalent();
   } else {
-    if (selectedAgentTalentTile) {
-      selectedAgentTalentTile.classList.remove('selected');
+    if (store.selectedAgentTalentTile) {
+      store.selectedAgentTalentTile.classList.remove('selected');
     }
-    setSelectedAgentTalent(talent);
-    setSelectedAgentTalentId(String(talent.id));
-    setSelectedAgentTalentTile(tile);
+    store.setSelectedAgentTalent(talent);
+    store.setSelectedAgentTalentId(String(talent.id));
+    store.setSelectedAgentTalentTile(tile);
     tile.classList.add('selected');
   }
 
-  if (confirmTalentBtn) {
-    confirmTalentBtn.disabled = !selectedAgentTalentId;
+  const confirmTalentBtnEl = document.getElementById('confirmTalentBtn');
+  if (confirmTalentBtnEl) {
+    confirmTalentBtnEl.disabled = !store.selectedAgentTalentId;
   }
 }
 
@@ -1141,33 +1109,36 @@ export function selectAvailableTalent(talent, tile) {
  * @returns {Promise<void>}
  */
 export async function confirmTalentSelection() {
-  if (!currentAgent) {
+  if (!store.currentAgent) {
     showToast('Aucun agent sélectionné.');
     return;
   }
-  if (!selectedAgentTalent || !selectedAgentTalent.id) {
+  if (!store.selectedAgentTalent || !store.selectedAgentTalent.id) {
     showToast('Veuillez sélectionner un talent valide.');
     return;
   }
-  if (Number(currentAgent.availableTalentPoints ?? 0) <= 0) {
+  if (Number(store.currentAgent.availableTalentPoints ?? 0) <= 0) {
     showToast('Aucun point de talent disponible.');
     return;
   }
 
+  const currentAgent = { ...store.currentAgent };
   currentAgent.availableTalentPoints = Math.max(0, Number(currentAgent.availableTalentPoints ?? 0) - 1);
   currentAgent.availableStatsPoints = Math.max(0, Number(currentAgent.availableStatsPoints ?? 0) - 1);
   
   // Sauvegarder le titre avant réinitialisation
-  const talentTitle = selectedAgentTalent.title;
+  const talentTitle = store.selectedAgentTalent.title;
   
   // Utiliser l'ID du talent directement depuis selectedAgentTalent
   currentAgent.talents = Array.isArray(currentAgent.talents)
-    ? [...currentAgent.talents, { ...selectedAgentTalent, id: String(selectedAgentTalent.id) }]
-    : [{ ...selectedAgentTalent, id: String(selectedAgentTalent.id) }];
+    ? [...currentAgent.talents, { ...store.selectedAgentTalent, id: String(store.selectedAgentTalent.id) }]
+    : [{ ...store.selectedAgentTalent, id: String(store.selectedAgentTalent.id) }];
+  
+  store.setCurrentAgent(currentAgent);
 
   // Re-rendre l'agent pour mettre à jour les points
   const { renderAgent } = await import('./ui.js');
-  await renderAgent(currentAgent);
+  await renderAgent(store.currentAgent);
   
   await persistCurrentAgent();
   await renderTalentsScreen();
@@ -1179,19 +1150,23 @@ export async function confirmTalentSelection() {
  * @returns {Promise<void>}
  */
 export async function renderTalentsScreen() {
-  if (!talentsContainer || !talentsAvailableContainer || !currentAgent) return;
+  const talentsContainerEl = document.getElementById('talentsContainer');
+  const talentsAvailableContainerEl = document.getElementById('talentsAvailableContainer');
+  const confirmTalentBtnEl = document.getElementById('confirmTalentBtn');
+  
+  if (!talentsContainerEl || !talentsAvailableContainerEl || !store.currentAgent) return;
 
   // Réinitialiser la sélection
-  resetSelectedAgentTalent();
+  store.resetSelectedAgentTalent();
   
-  if (confirmTalentBtn) {
-    confirmTalentBtn.disabled = true;
-    confirmTalentBtn.title = 'Sélectionnez un talent disponible pour activer.';
+  if (confirmTalentBtnEl) {
+    confirmTalentBtnEl.disabled = true;
+    confirmTalentBtnEl.title = 'Sélectionnez un talent disponible pour activer.';
   }
 
   try {
     const [activeResponse, allResponse] = await Promise.all([
-      fetch(`/api/agents/${currentAgent.id}/talents`),
+      fetch(`/api/agents/${store.currentAgent.id}/talents`),
       fetch('/api/talents'),
     ]);
 
@@ -1212,23 +1187,23 @@ export async function renderTalentsScreen() {
 
     const activeIds = new Set((activeTalents || []).map((talent) => talent.id));
     const availableTalents = allTalents.filter((talent) => !activeIds.has(talent.id));
-    const hasTalentPoints = Number(currentAgent.availableTalentPoints ?? 0) > 0;
+    const hasTalentPoints = Number(store.currentAgent.availableTalentPoints ?? 0) > 0;
 
-    talentsContainer.innerHTML = '';
-    talentsAvailableContainer.innerHTML = '';
-    talentsAvailableContainer.classList.toggle('talents-available-disabled', !hasTalentPoints);
+    talentsContainerEl.innerHTML = '';
+    talentsAvailableContainerEl.innerHTML = '';
+    talentsAvailableContainerEl.classList.toggle('talents-available-disabled', !hasTalentPoints);
 
     if (!activeTalents || !activeTalents.length) {
-      talentsContainer.innerHTML = '<div class="talents-empty">Aucun talent actif.</div>';
+      talentsContainerEl.innerHTML = '<div class="talents-empty">Aucun talent actif.</div>';
     } else {
       activeTalents.forEach((talent) => {
         const tile = createTalentTile(talent, false, false);
-        talentsContainer.appendChild(tile);
+        talentsContainerEl.appendChild(tile);
       });
     }
 
     if (!availableTalents.length) {
-      talentsAvailableContainer.innerHTML = '<div class="talents-empty">Aucun talent disponible.</div>';
+      talentsAvailableContainerEl.innerHTML = '<div class="talents-empty">Aucun talent disponible.</div>';
     } else {
       availableTalents.forEach((talent) => {
         const tile = createTalentTile(talent, true, !hasTalentPoints);
@@ -1238,13 +1213,13 @@ export async function renderTalentsScreen() {
           tile.style.cursor = 'pointer';
           tile.addEventListener('click', () => selectAvailableTalent(talent, tile));
         }
-        talentsAvailableContainer.appendChild(tile);
+        talentsAvailableContainerEl.appendChild(tile);
       });
     }
   } catch (error) {
     console.error('Erreur lors du chargement des talents:', error);
-    talentsContainer.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
-    talentsAvailableContainer.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
+    talentsContainerEl.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
+    talentsAvailableContainerEl.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
   }
 }
 
@@ -1269,16 +1244,17 @@ export async function handleMessageToggle(event) {
   const messageId = Number(button.dataset.messageId);
   if (!messageId) return;
 
-  if (expandedMessageIds.has(messageId)) {
-    expandedMessageIds.delete(messageId);
+  if (store.expandedMessageIds.has(messageId)) {
+    store.expandedMessageIds.delete(messageId);
   } else {
-    expandedMessageIds.add(messageId);
+    store.expandedMessageIds.add(messageId);
     // Marquer le message comme lu
-    const message = currentAgentMessages.find(m => m.id == messageId);
+    const message = store.currentAgentMessages.find(m => m.id == messageId);
     if (message && message.is_read !== true) {
       try {
         await requestJson(`/api/messages/${messageId}/read`, { method: 'PATCH' });
         message.is_read = true;
+        updateMessagesButtonLabel();
       } catch (error) {
         console.error('Erreur lors du marquage du message comme lu:', error);
       }
@@ -1286,9 +1262,9 @@ export async function handleMessageToggle(event) {
   }
 
   // Re-rendre les messages
-  const messages = currentAgentMessages.map(m => ({
+  const messages = store.currentAgentMessages.map(m => ({
     ...m,
-    expanded: expandedMessageIds.has(m.id)
+    expanded: store.expandedMessageIds.has(m.id)
   }));
   renderMessages(messages);
 }
@@ -1302,29 +1278,38 @@ export async function handleMessageToggle(event) {
  */
 export function initEventListeners() {
   // Boutons de navigation principale
-  if (inventoryBtn) inventoryBtn.addEventListener('click', () => {
+  const inventoryBtnEl = document.getElementById('inventoryBtn');
+  const skillsBtnEl = document.getElementById('skillsBtn');
+  const attributesBtnEl = document.getElementById('attributesBtn');
+  const competencesBtnEl = document.getElementById('competencesBtn');
+  const talentsBtnEl = document.getElementById('talentsBtn');
+  const messagesBtnEl = document.getElementById('messagesBtn');
+  
+  if (inventoryBtnEl) inventoryBtnEl.addEventListener('click', () => {
     openInventoryScreen();
-    renderInventory(currentAgent);
+    renderInventory(store.currentAgent);
   });
   
-  if (skillsBtn) skillsBtn.addEventListener('click', () => {
+  if (skillsBtnEl) skillsBtnEl.addEventListener('click', () => {
     initializeSkillsState();
     openSkillsScreen();
     updateSkillsScreen();
   });
   
-  if (attributesBtn) attributesBtn.addEventListener('click', () => {
+  if (attributesBtnEl) attributesBtnEl.addEventListener('click', () => {
     initializeAttributesState();
     openAttributesScreen();
     updateAttributesScreen();
   });
   
-  if (competencesBtn) competencesBtn.addEventListener('click', openCompetencesScreen);
-  if (talentsBtn) talentsBtn.addEventListener('click', async () => {
+  if (competencesBtnEl) competencesBtnEl.addEventListener('click', openCompetencesScreen);
+  if (talentsBtnEl) talentsBtnEl.addEventListener('click', async () => {
     openTalentsScreen();
     await renderTalentsScreen();
   });
-  if (messagesBtn) messagesBtn.addEventListener('click', openMessagesScreen);
+  if (messagesBtnEl) messagesBtnEl.addEventListener('click', async () => {
+    await openMessagesScreen();
+  });
   
   // Inventaire
   if (addInventoryItemBtn) addInventoryItemBtn.addEventListener('click', openAddItemModal);
@@ -1457,17 +1442,17 @@ export function initEventListeners() {
   // Wizard
   if (wizardBack) {
     wizardBack.addEventListener('click', () => {
-      if (currentStep === 1) {
+      if (store.currentStep === 1) {
         showSection('landing');
         return;
       }
-      showWizardStep(currentStep - 1);
+      showWizardStep(store.currentStep - 1);
     });
   }
   
   if (wizardNext) {
     wizardNext.addEventListener('click', async () => {
-      if (currentStep === 7) {
+      if (store.currentStep === 7) {
         const data = getWizardData();
         if (!validateStep(7)) {
           showToast('Vérifiez que le mot de passe est renseigné.');
@@ -1491,11 +1476,11 @@ export function initEventListeners() {
         }
         return;
       }
-      if (!validateStep(currentStep)) {
+      if (!validateStep(store.currentStep)) {
         showToast('Complétez cette étape avant de continuer.');
         return;
       }
-      showWizardStep(currentStep + 1);
+      showWizardStep(store.currentStep + 1);
     });
   }
   
@@ -1553,16 +1538,16 @@ export function initEventListeners() {
  * Initialise l'état des stats
  */
 export function initializeSkillsState() {
-  const agentStats = currentAgent?.stats || { speed: 1, resilience: 1, vigor: 1 };
+  const agentStats = store.currentAgent?.stats || { speed: 1, resilience: 1, vigor: 1 };
   
-  Object.assign(baseStats, {
+  Object.assign(store.baseStats, {
     speed: Number(agentStats.speed ?? 1),
     resilience: Number(agentStats.resilience ?? 1),
     vigor: Number(agentStats.vigor ?? 1),
   });
   
-  Object.assign(skillsState, {
-    reserve: Number(currentAgent?.availableStatsPoints ?? 0),
+  Object.assign(store.skillsState, {
+    reserve: Number(store.currentAgent?.availableStatsPoints ?? 0),
     stats: {
       speed: Number(agentStats.speed ?? 1),
       resilience: Number(agentStats.resilience ?? 1),
@@ -1575,16 +1560,16 @@ export function initializeSkillsState() {
  * Initialise l'état des attributs
  */
 export function initializeAttributesState() {
-  const agentAttributes = currentAgent?.attributes || { conscience: 1, dexterity: 1, technique: 1 };
+  const agentAttributes = store.currentAgent?.attributes || { conscience: 1, dexterity: 1, technique: 1 };
   
-  Object.assign(baseAttributes, {
+  Object.assign(store.baseAttributes, {
     conscience: Number(agentAttributes.conscience ?? 1),
     dexterity: Number(agentAttributes.dexterity ?? 1),
     technique: Number(agentAttributes.technique ?? 1),
   });
   
-  Object.assign(attributesState, {
-    reserve: Number(currentAgent?.availableAttributesPoints ?? 0),
+  Object.assign(store.attributesState, {
+    reserve: Number(store.currentAgent?.availableAttributesPoints ?? 0),
     attributes: {
       conscience: Number(agentAttributes.conscience ?? 1),
       dexterity: Number(agentAttributes.dexterity ?? 1),
@@ -1593,14 +1578,14 @@ export function initializeAttributesState() {
   });
   
   // Stocker les valeurs initiales
-  Object.assign(attributesViewInitialValues, {
-    conscience: attributesState.attributes.conscience,
-    dexterity: attributesState.attributes.dexterity,
-    technique: attributesState.attributes.technique,
+  Object.assign(store.attributesViewInitialValues, {
+    conscience: store.attributesState.attributes.conscience,
+    dexterity: store.attributesState.attributes.dexterity,
+    technique: store.attributesState.attributes.technique,
   });
   
   // Réinitialiser les modifications
-  Object.keys(attributesViewModifications).forEach(key => delete attributesViewModifications[key]);
+  Object.keys(store.attributesViewModifications).forEach(key => delete store.attributesViewModifications[key]);
 }
 
 /**
@@ -1608,11 +1593,11 @@ export function initializeAttributesState() {
  */
 export function updateSkillsScreen() {
   renderSkillsScreen({
-    reserve: skillsState.reserve,
-    stats: skillsState.stats,
-    baseStats
+    reserve: store.skillsState.reserve,
+    stats: store.skillsState.stats,
+    baseStats: store.baseStats
   });
-  updateSkillsButtons({ reserve: skillsState.reserve, stats: skillsState.stats, baseStats });
+  updateSkillsButtons({ reserve: store.skillsState.reserve, stats: store.skillsState.stats, baseStats: store.baseStats });
 }
 
 /**
@@ -1620,15 +1605,15 @@ export function updateSkillsScreen() {
  */
 export function updateAttributesScreen() {
   renderAttributesScreen({
-    reserve: attributesState.reserve,
-    attributes: attributesState.attributes,
-    baseAttributes
+    reserve: store.attributesState.reserve,
+    attributes: store.attributesState.attributes,
+    baseAttributes: store.baseAttributes
   });
   
-  updateAttributesButtons({ reserve: attributesState.reserve, attributes: attributesState.attributes, baseAttributes });
+  updateAttributesButtons({ reserve: store.attributesState.reserve, attributes: store.attributesState.attributes, baseAttributes: store.baseAttributes });
   
   // Vérifier si des modifications existent
-  const hasModifications = Object.keys(attributesViewModifications).length > 0;
+  const hasModifications = Object.keys(store.attributesViewModifications).length > 0;
   updateSaveAttributesButtonState(hasModifications);
 }
 
@@ -1638,24 +1623,24 @@ export function updateAttributesScreen() {
  * @param {string} action - Action (increase/decrease)
  */
 export function changeSkillStat(stat, action) {
-  if (typeof skillsState.reserve !== 'number' || isNaN(skillsState.reserve)) {
-    skillsState.reserve = Number(skillsState.reserve) || 0;
+  if (typeof store.skillsState.reserve !== 'number' || isNaN(store.skillsState.reserve)) {
+    store.skillsState.reserve = Number(store.skillsState.reserve) || 0;
   }
   
   if (action === 'increase') {
-    if (skillsState.reserve <= 0) return;
-    skillsState.stats[stat] = (skillsState.stats[stat] || 0) + 1;
-    skillsState.reserve -= 1;
+    if (store.skillsState.reserve <= 0) return;
+    store.skillsState.stats[stat] = (store.skillsState.stats[stat] || 0) + 1;
+    store.skillsState.reserve -= 1;
   } else if (action === 'decrease') {
-    if (skillsState.stats[stat] <= (baseStats[stat] || 1)) return;
-    skillsState.stats[stat] = Math.max(baseStats[stat] || 1, skillsState.stats[stat] - 1);
-    skillsState.reserve += 1;
+    if (store.skillsState.stats[stat] <= (store.baseStats[stat] || 1)) return;
+    store.skillsState.stats[stat] = Math.max(store.baseStats[stat] || 1, store.skillsState.stats[stat] - 1);
+    store.skillsState.reserve += 1;
   }
   
   // Mettre à jour currentAgent
-  if (currentAgent) {
-    currentAgent.stats = { ...currentAgent.stats, ...skillsState.stats };
-    currentAgent.availableStatsPoints = skillsState.reserve;
+  if (store.currentAgent) {
+    store.currentAgent.stats = { ...store.currentAgent.stats, ...store.skillsState.stats };
+    store.currentAgent.availableStatsPoints = store.skillsState.reserve;
   }
   
   updateSkillsScreen();
@@ -1667,36 +1652,36 @@ export function changeSkillStat(stat, action) {
  * @param {string} action - Action (increase/decrease)
  */
 export function changeAttributeStat(attr, action) {
-  if (typeof attributesState.reserve !== 'number' || isNaN(attributesState.reserve)) {
-    attributesState.reserve = Number(attributesState.reserve) || 0;
+  if (typeof store.attributesState.reserve !== 'number' || isNaN(store.attributesState.reserve)) {
+    store.attributesState.reserve = Number(store.attributesState.reserve) || 0;
   }
   
-  const oldValue = attributesState.attributes[attr];
+  const oldValue = store.attributesState.attributes[attr];
   
   if (action === 'increase') {
-    if (attributesState.reserve <= 0) return;
-    attributesState.attributes[attr] = (attributesState.attributes[attr] || 0) + 1;
-    attributesState.reserve -= 1;
+    if (store.attributesState.reserve <= 0) return;
+    store.attributesState.attributes[attr] = (store.attributesState.attributes[attr] || 0) + 1;
+    store.attributesState.reserve -= 1;
   } else if (action === 'decrease') {
-    if (attributesState.attributes[attr] <= (baseAttributes[attr] || 1)) return;
-    attributesState.attributes[attr] = Math.max(baseAttributes[attr] || 1, attributesState.attributes[attr] - 1);
-    attributesState.reserve += 1;
+    if (store.attributesState.attributes[attr] <= (store.baseAttributes[attr] || 1)) return;
+    store.attributesState.attributes[attr] = Math.max(store.baseAttributes[attr] || 1, store.attributesState.attributes[attr] - 1);
+    store.attributesState.reserve += 1;
   }
   
   // Mettre à jour currentAgent
-  if (currentAgent) {
-    currentAgent.attributes = { ...currentAgent.attributes, ...attributesState.attributes };
-    currentAgent.availableAttributesPoints = attributesState.reserve;
+  if (store.currentAgent) {
+    store.currentAgent.attributes = { ...store.currentAgent.attributes, ...store.attributesState.attributes };
+    store.currentAgent.availableAttributesPoints = store.attributesState.reserve;
   }
   
   // Marquer la modification
-  const newValue = attributesState.attributes[attr];
-  const initialValue = attributesViewInitialValues[attr];
+  const newValue = store.attributesState.attributes[attr];
+  const initialValue = store.attributesViewInitialValues[attr];
   
   if (newValue !== initialValue) {
-    attributesViewModifications[attr] = newValue;
+    store.attributesViewModifications[attr] = newValue;
   } else {
-    delete attributesViewModifications[attr];
+    delete store.attributesViewModifications[attr];
   }
   
   updateAttributesScreen();
@@ -1707,14 +1692,14 @@ export function changeAttributeStat(attr, action) {
  * @returns {Promise<void>}
  */
 async function saveSkillsAllocation() {
-  if (!currentAgent) return;
-  currentAgent.stats = { ...currentAgent.stats, ...skillsState.stats };
-  currentAgent.availableStatsPoints = skillsState.reserve;
+  if (!store.currentAgent) return;
+  store.currentAgent.stats = { ...store.currentAgent.stats, ...store.skillsState.stats };
+  store.currentAgent.availableStatsPoints = store.skillsState.reserve;
   await persistCurrentAgent();
   showToast('Compétences mises à jour.');
   
   const { renderAgent } = await import('./ui.js');
-  await renderAgent(currentAgent);
+  await renderAgent(store.currentAgent);
   openDashboardView();
 }
 
@@ -1723,17 +1708,17 @@ async function saveSkillsAllocation() {
  * @returns {Promise<void>}
  */
 async function saveAttributesAllocation() {
-  if (!currentAgent) return;
-  currentAgent.attributes = { ...currentAgent.attributes, ...attributesState.attributes };
-  currentAgent.availableAttributesPoints = attributesState.reserve;
+  if (!store.currentAgent) return;
+  store.currentAgent.attributes = { ...store.currentAgent.attributes, ...store.attributesState.attributes };
+  store.currentAgent.availableAttributesPoints = store.attributesState.reserve;
   await persistCurrentAgent();
   showToast('Attributs mis à jour.');
   
   // Réinitialiser les modifications
-  Object.keys(attributesViewModifications).forEach(key => delete attributesViewModifications[key]);
-  Object.keys(attributesViewInitialValues).forEach(key => delete attributesViewInitialValues[key]);
+  Object.keys(store.attributesViewModifications).forEach(key => delete store.attributesViewModifications[key]);
+  Object.keys(store.attributesViewInitialValues).forEach(key => delete store.attributesViewInitialValues[key]);
   
   const { renderAgent } = await import('./ui.js');
-  await renderAgent(currentAgent);
+  await renderAgent(store.currentAgent);
   openDashboardView();
 }

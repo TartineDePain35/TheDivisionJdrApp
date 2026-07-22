@@ -4,21 +4,9 @@
  */
 
 // ============================================================================
-// IMPORTS - State
+// IMPORTS - Store Centralisé
 // ============================================================================
-import {
-  weaponsData,
-  medicalData,
-  equipmentData,
-  effectsData,
-  competencesHierarchy,
-  competencesState,
-  currentAgent,
-  currentAgentMessages,
-  talents,
-  talentIndex,
-  selectedTalent,
-} from './state.js';
+import { store } from './store.js';
 
 // ============================================================================
 // IMPORTS - Configuration
@@ -67,21 +55,20 @@ export async function requestJson(url, options) {
  * @returns {Promise<Array>} - Tableau des armes
  */
 export async function loadWeaponsData() {
-  if (weaponsData.length) {
-    return Promise.resolve(weaponsData);
+  // Vérifier si les données sont déjà chargées via le Store
+  if (store.weaponsData.length) {
+    return Promise.resolve(store.weaponsData);
   }
   return requestJson(WEAPONS_DATA_PATH)
     .then((data) => {
-      // Mise à jour directe de la référence exportée
+      // Utiliser le setter du Store
       const loadedData = Array.isArray(data) ? data : [];
-      // On doit mutuer le tableau pour que les imports voient les changements
-      weaponsData.length = 0;
-      weaponsData.push(...loadedData);
-      return weaponsData;
+      store.setWeaponsData(loadedData);
+      return store.weaponsData;
     })
     .catch(() => {
-      weaponsData.length = 0;
-      return weaponsData;
+      store.setWeaponsData([]);
+      return store.weaponsData;
     });
 }
 
@@ -90,19 +77,20 @@ export async function loadWeaponsData() {
  * @returns {Promise<Array>} - Tableau des items médicaux
  */
 export async function loadMedicalData() {
-  if (medicalData.length) {
-    return Promise.resolve(medicalData);
+  // Vérifier si les données sont déjà chargées via le Store
+  if (store.medicalData.length) {
+    return Promise.resolve(store.medicalData);
   }
   return requestJson(MEDICAL_DATA_PATH)
     .then((data) => {
+      // Utiliser le setter du Store
       const loadedData = Array.isArray(data) ? data : [];
-      medicalData.length = 0;
-      medicalData.push(...loadedData);
-      return medicalData;
+      store.setMedicalData(loadedData);
+      return store.medicalData;
     })
     .catch(() => {
-      medicalData.length = 0;
-      return medicalData;
+      store.setMedicalData([]);
+      return store.medicalData;
     });
 }
 
@@ -111,19 +99,20 @@ export async function loadMedicalData() {
  * @returns {Promise<Array>} - Tableau des équipements
  */
 export async function loadEquipmentData() {
-  if (equipmentData.length) {
-    return Promise.resolve(equipmentData);
+  // Vérifier si les données sont déjà chargées via le Store
+  if (store.equipmentData.length) {
+    return Promise.resolve(store.equipmentData);
   }
   return requestJson(EQUIPMENT_DATA_PATH)
     .then((data) => {
+      // Utiliser le setter du Store
       const loadedData = Array.isArray(data) ? data : [];
-      equipmentData.length = 0;
-      equipmentData.push(...loadedData);
-      return equipmentData;
+      store.setEquipmentData(loadedData);
+      return store.equipmentData;
     })
     .catch(() => {
-      equipmentData.length = 0;
-      return equipmentData;
+      store.setEquipmentData([]);
+      return store.equipmentData;
     });
 }
 
@@ -136,82 +125,89 @@ export async function loadEquipmentData() {
  * @returns {Promise<Object>} - Hiérarchie des compétences
  */
 export async function loadCompetencesData() {
-  if (!currentAgent?.id) {
-    // Réinitialiser l'état
-    competencesHierarchy.length = 0;
-    Object.keys(competencesState).forEach(key => delete competencesState[key]);
+  // Utiliser currentAgent depuis le Store
+  const agent = store.currentAgent;
+  
+  if (!agent?.id) {
+    // Réinitialiser l'état via le Store
+    store.setCompetencesHierarchy([]);
+    store.setCompetencesState({});
     return;
   }
 
   try {
-    const response = await fetch(`/api/skills/hierarchy/${currentAgent.id}`);
+    const response = await fetch(`/api/skills/hierarchy/${agent.id}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const data = await response.json();
     // Gérer les 2 formats (tableau direct ou objet {hierarchy: [...]})
     const hierarchy = Array.isArray(data) ? data : (data.hierarchy || []);
     
-    // Mise à jour de la hiérarchie (utiliser splice pour éviter la réassignment)
-    competencesHierarchy.splice(0, competencesHierarchy.length, ...hierarchy);
-
     // Reconstruire competencesState avec les IDs comme clés
-    // Vider l'objet existant sans réassignment
-    Object.keys(competencesState).forEach(key => delete competencesState[key]);
-    for (const group of competencesHierarchy) {
+    const newCompetencesState = {};
+    for (const group of hierarchy) {
       const groupKey = group.id;
       // Utiliser la valeur de l'agent pour les groupes principaux
       const normalizedGroupName = group.name.toLowerCase().replace(/\s+/g, '');
-      const agentGroupValue = currentAgent.attributes?.[normalizedGroupName] || 
-                               currentAgent.attributes?.[group.name] || 
+      const agentGroupValue = agent.attributes?.[normalizedGroupName] || 
+                               agent.attributes?.[group.name] || 
                                group.value || 0;
-      competencesState[groupKey] = { ...group, value: agentGroupValue };
+      newCompetencesState[groupKey] = { ...group, value: agentGroupValue };
 
       for (const attribute of group.attributes || []) {
         const attrKey = attribute.id;
-        competencesState[groupKey][attrKey] = { ...attribute, value: attribute.value || 0 };
+        newCompetencesState[groupKey][attrKey] = { ...attribute, value: attribute.value || 0 };
 
         for (const skillGroup of attribute.skillGroups || []) {
           const sgKey = skillGroup.id;
-          competencesState[groupKey][attrKey][sgKey] = { ...skillGroup, value: skillGroup.value || 0 };
+          newCompetencesState[groupKey][attrKey][sgKey] = { ...skillGroup, value: skillGroup.value || 0 };
 
           for (const skill of skillGroup.skills || []) {
             const skillKey = skill.id;
-            competencesState[groupKey][attrKey][sgKey][skillKey] = { ...skill, value: skill.value || 0 };
+            newCompetencesState[groupKey][attrKey][sgKey][skillKey] = { ...skill, value: skill.value || 0 };
           }
         }
       }
     }
 
     // Fusionner avec les compétences éventuellement sauvegardées dans currentAgent
-    if (currentAgent.skills) {
-      deepMergeCompetences(currentAgent.skills);
+    if (agent.skills) {
+      const mergedState = { ...newCompetencesState };
+      deepMergeCompetencesIntoState(mergedState, agent.skills);
+      store.setCompetencesState(mergedState);
+    } else {
+      store.setCompetencesState(newCompetencesState);
     }
 
-    return competencesHierarchy;
+    // Mettre à jour la hiérarchie
+    store.setCompetencesHierarchy(hierarchy);
+
+    return hierarchy;
   } catch (error) {
     console.error('Error loading competences:', error);
-    competencesHierarchy.splice(0, competencesHierarchy.length);
-    Object.keys(competencesState).forEach(key => delete competencesState[key]);
+    store.setCompetencesHierarchy([]);
+    store.setCompetencesState({});
     throw error;
   }
 }
 
 /**
- * Fusionne les compétences sauvegardées avec l'état actuel
+ * Fusionne les compétences sauvegardées dans l'état
+ * @param {Object} state - État des compétences
  * @param {Object} saved - Compétences sauvegardées
  */
-export function deepMergeCompetences(saved) {
-  if (!saved || !competencesState) return;
+function deepMergeCompetencesIntoState(state, saved) {
+  if (!saved || !state) return;
 
   for (const attrKey in saved) {
-    if (competencesState[attrKey]) {
+    if (state[attrKey]) {
       for (const subAttrKey in saved[attrKey]) {
-        if (competencesState[attrKey][subAttrKey]) {
+        if (state[attrKey][subAttrKey]) {
           for (const groupKey in saved[attrKey][subAttrKey]) {
-            if (competencesState[attrKey][subAttrKey][groupKey]) {
+            if (state[attrKey][subAttrKey][groupKey]) {
               for (const skillKey in saved[attrKey][subAttrKey][groupKey]) {
-                if (competencesState[attrKey][subAttrKey][groupKey][skillKey]) {
-                  competencesState[attrKey][subAttrKey][groupKey][skillKey].value =
+                if (state[attrKey][subAttrKey][groupKey][skillKey]) {
+                  state[attrKey][subAttrKey][groupKey][skillKey].value =
                     saved[attrKey][subAttrKey][groupKey][skillKey]?.value || 0;
                 }
               }
@@ -223,6 +219,19 @@ export function deepMergeCompetences(saved) {
   }
 }
 
+/**
+ * Fusionne les compétences sauvegardées avec l'état actuel
+ * @param {Object} saved - Compétences sauvegardées
+ * @deprecated Utiliser deepMergeCompetencesIntoState à la place
+ */
+export function deepMergeCompetences(saved) {
+  // Cette fonction est conservée pour la compatibilité
+  // Elle utilise maintenant le Store
+  if (!saved) return;
+  const currentState = store.competencesState;
+  deepMergeCompetencesIntoState(currentState, saved);
+}
+
 // ============================================================================
 // CHARGEMENT DES EFFETS
 // ============================================================================
@@ -232,19 +241,20 @@ export function deepMergeCompetences(saved) {
  * @returns {Promise<Array>} - Tableau de tous les effets
  */
 export async function loadAllEffects() {
-  if (effectsData.length) {
-    return Promise.resolve(effectsData);
+  // Vérifier si les données sont déjà chargées via le Store
+  if (store.effectsData.length) {
+    return Promise.resolve(store.effectsData);
   }
   return requestJson('/api/effects')
     .then((data) => {
+      // Utiliser le setter du Store
       const loadedData = Array.isArray(data?.effects) ? data.effects : (Array.isArray(data) ? data : []);
-      effectsData.length = 0;
-      effectsData.push(...loadedData);
-      return effectsData;
+      store.setEffectsData(loadedData);
+      return store.effectsData;
     })
     .catch(() => {
-      effectsData.length = 0;
-      return effectsData;
+      store.setEffectsData([]);
+      return store.effectsData;
     });
 }
 
@@ -257,16 +267,16 @@ export async function loadAllEffects() {
  * @returns {Promise<Array>} - Tableau des messages
  */
 export async function loadMessagesForCurrentAgent() {
-  if (!currentAgent?.id) return [];
+  const agent = store.currentAgent;
+  if (!agent?.id) return [];
 
   try {
-    const result = await requestJson(`/api/messages/${currentAgent.id}`);
+    const result = await requestJson(`/api/messages/${agent.id}`);
     const messages = Array.isArray(result?.messages) ? result.messages : [];
     const sortedMessages = messages.sort((a, b) => Number(b.id) - Number(a.id));
     
-    // Mise à jour directe du tableau
-    currentAgentMessages.length = 0;
-    currentAgentMessages.push(...sortedMessages);
+    // Utiliser le setter du Store
+    store.setCurrentAgentMessages(sortedMessages);
     
     return sortedMessages;
   } catch (error) {
@@ -296,19 +306,18 @@ export async function loadTalents() {
     
     // S'assurer que talents est un tableau d'objets avec id
     if (!Array.isArray(loadedTalents)) {
-      talents.length = 0;
+      store.setTalents([]);
       return [];
     }
     
-    // Mise à jour du tableau
-    talents.length = 0;
-    talents.push(...loadedTalents);
+    // Utiliser le setter du Store
+    store.setTalents(loadedTalents);
     
-    console.log('Talents chargés dans le state:', talents.length);
-    return talents;
+    console.log('Talents chargés dans le state:', loadedTalents.length);
+    return loadedTalents;
   } catch (error) {
     console.error('Erreur lors du chargement des talents:', error);
-    talents.length = 0;
+    store.setTalents([]);
     return [];
   }
 }

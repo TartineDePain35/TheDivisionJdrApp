@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Division JDR - Gérer l'Aventure</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="admin-container">
+    <header class="admin-header">
+      <h1>Gérer l'Aventure</h1>
+      <nav class="admin-nav">
+        <a href="/admin/adventures" class="btn btn-tertiary">Retour aux aventures</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="section-card" style="margin-bottom: 20px;">
+        <h2 id="adventureName">Chargement...</h2>
+        <p id="adventureDescription" style="color: #aaa;">Chargement...</p>
+        <p style="color: #888; font-size: 14px;">
+          Créée le: <span id="adventureCreatedAt"></span> | 
+          Statut: <span id="adventureStatus" class="status"></span>
+        </p>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="edit">Modifier</div>
+        <div class="tab" data-tab="agents">Agents</div>
+        <div class="tab" data-tab="invitations">Invitations</div>
+      </div>
+
+      <!-- Onglet Modifier -->
+      <div id="tab-edit" class="tab-content active">
+        <div class="section-card">
+          <h3>Modifier les informations de l'aventure</h3>
+          <form id="editAdventureForm">
+            <div class="form-group">
+              <label for="editName">Nom de l'aventure *</label>
+              <input id="editName" name="name" type="text" required />
+            </div>
+            <div class="form-group">
+              <label for="editDescription">Description</label>
+              <textarea id="editDescription" name="description"></textarea>
+            </div>
+            <div class="form-group">
+              <label>
+                <input id="editIsActive" name="isActive" type="checkbox" /> 
+                Aventure active
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-tertiary" onclick="loadAdventure()">Annuler</button>
+              <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Onglet Agents -->
+      <div id="tab-agents" class="tab-content">
+        <div class="section-card">
+          <h3>Agents de cette aventure</h3>
+          <p style="color: #888; margin-bottom: 15px;">Les agents qui ont accepté l'invitation.</p>
+          <div id="agentsList" class="agent-list">
+            <div class="loading">Chargement des agents...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Onglet Invitations -->
+      <div id="tab-invitations" class="tab-content">
+        <div class="section-card">
+          <h3>Inviter de nouveaux agents</h3>
+          <p style="color: #888; margin-bottom: 15px;">Sélectionnez les agents à inviter parmi ceux qui n'ont pas d'aventure active.</p>
+          
+          <div class="form-group">
+            <button type="button" id="loadAvailableAgentsBtn" class="btn btn-secondary">Charger les agents disponibles</button>
+          </div>
+          
+          <div id="availableAgentsContainer" class="available-agents" style="display: none;"></div>
+          
+          <div class="form-group" style="margin-top: 20px;">
+            <button id="inviteSelectedBtn" class="btn btn-primary" style="display: none;">Inviter les agents sélectionnés</button>
+          </div>
+          
+          <h3 style="margin-top: 30px;">Invitations en cours</h3>
+          <div id="invitationsList" class="agent-list">
+            <div class="loading">Chargement des invitations...</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Extraire l'ID depuis l'URL /admin/adventures/:id/edit
+    const pathParts = window.location.pathname.split('/');
+    const adventureId = pathParts[3]; // /admin/adventures/:id/edit → index 3 = :id
+    
+    let availableAgents = [];
+    let selectedAgents = new Set();
+    
+    // Charger l'aventure au démarrage
+    async function loadAdventure() {
+      try {
+        const response = await fetch(`/api/admin/adventures/${adventureId}`);
+        const data = await response.json();
+        
+        if (data.success && data.adventure) {
+          renderAdventure(data.adventure);
+          loadAdventureAgents();
+          loadAdventureInvitations();
+        } else {
+          alert('Erreur: ' + (data.message || 'Aventure introuvable'));
+          window.location.href = '/admin/adventures';
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'aventure:', error);
+        alert('Erreur réseau.');
+      }
+    }
+    
+    function renderAdventure(adventure) {
+      document.getElementById('adventureName').textContent = adventure.name;
+      document.getElementById('adventureDescription').textContent = adventure.description || 'Aucune description';
+      document.getElementById('adventureCreatedAt').textContent = new Date(adventure.createdAt).toLocaleDateString('fr-FR');
+      
+      // Mettre à jour le champ statut
+      const statusEl = document.getElementById('adventureStatus');
+      statusEl.textContent = adventure.isActive ? 'Active' : 'Inactive';
+      statusEl.className = 'status ' + (adventure.isActive ? 'active' : 'inactive');
+      
+      // Pré-remplir le formulaire d'édition
+      document.getElementById('editName').value = adventure.name;
+      document.getElementById('editDescription').value = adventure.description || '';
+      document.getElementById('editIsActive').checked = adventure.isActive || true;
+    }
+    
+    // Charger les agents de l'aventure
+    async function loadAdventureAgents() {
+      try {
+        const response = await fetch(`/api/admin/adventures/${adventureId}/invitations`);
+        const data = await response.json();
+        
+        const listEl = document.getElementById('agentsList');
+        if (data.success && data.invitations && data.invitations.length > 0) {
+          // Filtrer uniquement les invitations acceptées (agents actifs)
+          const acceptedInvitations = data.invitations.filter(inv => inv.status === 'accepted');
+          
+          if (acceptedInvitations.length > 0) {
+            listEl.innerHTML = acceptedInvitations.map(inv => `
+              <div class="agent-item">
+                <div class="info">
+                  <div class="name">${escapeHtml(inv.agentName)}</div>
+                  <div class="profession">Agent</div>
+                </div>
+                <span class="invitation-status accepted">Actif</span>
+              </div>
+            `).join('');
+          } else {
+            listEl.innerHTML = '<div class="loading">Aucun agent actif dans cette aventure.</div>';
+          }
+        } else {
+          listEl.innerHTML = '<div class="loading">Aucun agent actif dans cette aventure.</div>';
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des agents:', error);
+      }
+    }
+    
+    // Charger les invitations de l'aventure
+    async function loadAdventureInvitations() {
+      try {
+        const response = await fetch(`/api/admin/adventures/${adventureId}/invitations`);
+        const data = await response.json();
+        
+        const listEl = document.getElementById('invitationsList');
+        if (data.success && data.invitations && data.invitations.length > 0) {
+          listEl.innerHTML = data.invitations.map(inv => `
+            <div class="agent-item">
+              <div class="info">
+                <div class="name">${escapeHtml(inv.agentName || 'Agent inconnu')}</div>
+              </div>
+              <div>
+                <span class="invitation-status ${inv.status}">${statusText(inv.status)}</span>
+                ${inv.status === 'pending' ? '<button onclick="cancelInvitation(' + inv.id + ')" class="btn btn-danger btn-sm">Annuler</button>' : ''}
+              </div>
+            </div>
+          `).join('');
+        } else {
+          listEl.innerHTML = '<div class="loading">Aucune invitation pour cette aventure.</div>';
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des invitations:', error);
+      }
+    }
+    
+    // Charger les agents disponibles pour invitation
+    document.getElementById('loadAvailableAgentsBtn').addEventListener('click', async () => {
+      try {
+        const response = await fetch(`/api/admin/adventures/${adventureId}/agents`);
+        const data = await response.json();
+        
+        if (data.success && data.agents) {
+          availableAgents = data.agents;
+          renderAvailableAgents();
+          document.getElementById('availableAgentsContainer').style.display = 'block';
+          document.getElementById('inviteSelectedBtn').style.display = 'block';
+        } else {
+          alert('Erreur: ' + (data.message || 'Impossible de charger les agents'));
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des agents disponibles:', error);
+        alert('Erreur réseau.');
+      }
+    });
+    
+    function renderAvailableAgents() {
+      const container = document.getElementById('availableAgentsContainer');
+      container.innerHTML = availableAgents.map(agent => `
+        <label class="available-agent">
+          <div class="info">
+            <div class="name">${escapeHtml(agent.name)} ${escapeHtml(agent.firstName)}</div>
+            <div class="profession">${escapeHtml(agent.profession || 'Aucune profession')}</div>
+          </div>
+          <input type="checkbox" data-agent-id="${agent.id}" ${selectedAgents.has(agent.id) ? 'checked' : ''} />
+        </label>
+      `).join('');
+      
+      // Ajouter les écouteurs sur les checkboxes
+      container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+          const agentId = Number(e.target.dataset.agentId);
+          if (e.target.checked) {
+            selectedAgents.add(agentId);
+          } else {
+            selectedAgents.delete(agentId);
+          }
+        });
+      });
+    }
+    
+    // Inviter les agents sélectionnés
+    document.getElementById('inviteSelectedBtn').addEventListener('click', async () => {
+      if (selectedAgents.size === 0) {
+        alert('Veuillez sélectionner au moins un agent.');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/admin/adventures/${adventureId}/invite`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ agentIds: Array.from(selectedAgents) })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert(`${data.invitationIds.length} invitation(s) envoyée(s) avec succès !`);
+          selectedAgents.clear();
+          renderAvailableAgents();
+          loadAdventureInvitations();
+        } else {
+          alert('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi des invitations:', error);
+        alert('Erreur réseau.');
+      }
+    });
+    
+    // Annuler une invitation
+    async function cancelInvitation(invitationId) {
+      if (!confirm('Voulez-vous vraiment annuler cette invitation ?')) return;
+      
+      try {
+        // Note: Il faudrait une route DELETE /api/admin/invitations/:id
+        // Pour l'instant, on utilise rejectInvitation comme solution temporaire
+        const response = await fetch(`/api/agent/invitations/${invitationId}/reject`, {
+          method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Invitation annulée avec succès.');
+          loadAdventureInvitations();
+        } else {
+          alert('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'annulation:', error);
+        alert('Erreur réseau.');
+      }
+    }
+    
+    // Mettre à jour l'aventure
+    document.getElementById('editAdventureForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('editName').value.trim();
+      const description = document.getElementById('editDescription').value.trim();
+      const isActive = document.getElementById('editIsActive').checked;
+      
+      if (!name) {
+        alert('Le nom de l\'aventure est requis.');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/admin/adventures/${adventureId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, description, isActive })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Aventure mise à jour avec succès !');
+          loadAdventure();
+        } else {
+          alert('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        console.error('Erreur lors de la mise à jour:', error);
+        alert('Erreur réseau.');
+      }
+    });
+    
+    // Gestion des onglets
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+    
+    // Utilitaires
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    function statusText(status) {
+      const texts = {
+        pending: 'En attente',
+        accepted: 'Acceptée',
+        rejected: 'Refusée'
+      };
+      return texts[status] || status;
+    }
+    
+    // Charger au démarrage
+    loadAdventure();
+  </script>
+</body>
+</html>

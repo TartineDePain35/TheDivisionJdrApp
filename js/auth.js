@@ -4,12 +4,9 @@
  */
 
 // ============================================================================
-// IMPORTS - State
+// IMPORTS - Store Centralisé
 // ============================================================================
-import {
-  currentAgent,
-  resetAppState,
-} from './state.js';
+import { store } from './store.js';
 
 // ============================================================================
 // IMPORTS - Configuration
@@ -177,10 +174,16 @@ export async function loginAgent(name, password) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, password }),
     });
-    return result.agent;
+    // Retourner toutes les données (agent, adventure, pendingInvitation)
+    return result;
   } catch {
     // Fallback vers la connexion locale
-    return loginAgentLocally(name, password);
+    const agent = loginAgentLocally(name, password);
+    if (agent) {
+      // Pour la connexion locale, on n'a pas d'aventure ou d'invitation
+      return { success: true, agent, adventure: null, pendingInvitation: null };
+    }
+    return null;
   }
 }
 
@@ -270,19 +273,21 @@ export async function loadCurrentAgent() {
  * @returns {Promise<void>}
  */
 export async function persistCurrentAgent() {
-  if (!currentAgent || !currentAgent.id) return;
+  // Utiliser currentAgent depuis le Store
+  const agent = store.currentAgent;
+  if (!agent || !agent.id) return;
   
   try {
     // Protégeons contre les objets non sérialisables
     let agentData;
     try {
-      agentData = JSON.parse(JSON.stringify(currentAgent));
+      agentData = JSON.parse(JSON.stringify(agent));
     } catch (e) {
       console.error('Erreur de sérialisation de currentAgent:', e);
       throw e;
     }
     
-    const response = await requestJson(`/api/agents/${currentAgent.id}`, {
+    const response = await requestJson(`/api/agents/${agent.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(agentData),
@@ -294,7 +299,7 @@ export async function persistCurrentAgent() {
   } catch (error) {
     console.error('Erreur complète dans persistCurrentAgent:', error);
     // Fallback : sauvegarde locale
-    updateAgentLocally(currentAgent);
+    updateAgentLocally(agent);
   }
 }
 
@@ -309,5 +314,5 @@ export async function persistCurrentAgent() {
 export async function logout() {
   await persistCurrentAgent();
   clearSession();
-  resetAppState();
+  store.resetAppState();
 }

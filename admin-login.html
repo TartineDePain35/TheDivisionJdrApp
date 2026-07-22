@@ -7,79 +7,101 @@
   <link rel="stylesheet" href="/styles.css" />
   <style>
     body {
-      background: #1a1a2e;
-      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       margin: 0;
     }
+
     .admin-login-card {
-      background: #16213e;
-      border-radius: 12px;
-      padding: 2rem;
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 32px 24px;
       width: 100%;
       max-width: 400px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(18px);
     }
+
     .admin-login-card h2 {
-      color: #e94560;
+      color: var(--accent);
       text-align: center;
-      margin-bottom: 1.5rem;
-      font-size: 1.5rem;
+      margin: 0 0 24px;
+      font-size: 1.3rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
     }
+
     .admin-login-card .form-group {
-      margin-bottom: 1rem;
+      margin-bottom: 14px;
     }
+
     .admin-login-card label {
       display: block;
-      color: #a0a0a0;
-      margin-bottom: 0.5rem;
-      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-size: 0.92rem;
     }
+
     .admin-login-card input {
       width: 100%;
-      padding: 0.75rem;
-      border: 1px solid #2a2a4a;
-      border-radius: 6px;
-      background: #0f3460;
-      color: #fff;
-      font-size: 1rem;
+      padding: 16px 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      font-size: 0.92rem;
       box-sizing: border-box;
     }
+
     .admin-login-card input:focus {
       outline: none;
-      border-color: #e94560;
+      border-color: rgba(255,143,31,0.65);
+      background: rgba(255,255,255,0.1);
+      box-shadow: 0 0 0 4px rgba(255,143,31,0.1);
     }
+
     .admin-login-card .btn {
       width: 100%;
-      padding: 0.75rem;
-      margin-top: 1rem;
-      font-size: 1rem;
+      margin-top: 8px;
     }
-    .error-message {
-      color: #e94560;
+
+    .admin-login-card a.btn {
+      margin-top: 8px;
       text-align: center;
-      margin-top: 1rem;
-      font-size: 0.9rem;
+      text-decoration: none;
+      display: block;
+    }
+
+    .error-message {
+      color: #dc3545;
+      text-align: center;
+      margin-top: 14px;
+      font-size: 0.92rem;
       display: none;
+      background: rgba(220, 53, 69, 0.12);
+      border: 1px solid rgba(220, 53, 69, 0.32);
+      padding: 12px;
+      border-radius: 14px;
     }
   </style>
 </head>
 <body>
   <div class="admin-login-card">
-    <h2>Connexion Admin</h2>
+    <h2>Admin</h2>
     <form id="adminLoginForm">
       <div class="form-group">
         <label for="adminUsername">Utilisateur</label>
-        <input id="adminUsername" name="username" type="text" placeholder="AdminAgent" required />
+        <input id="adminUsername" name="username" type="text" placeholder="Identifiant" required />
       </div>
       <div class="form-group">
         <label for="adminPassword">Mot de passe</label>
         <input id="adminPassword" name="password" type="password" placeholder="••••••••" required />
       </div>
       <button type="submit" class="btn btn-primary">Se connecter</button>
-      <a href="/" class="btn btn-tertiary" style="margin-top: 0.5rem;">Retour</a>
+      <a href="/" class="btn btn-tertiary">Retour</a>
     </form>
     <div id="adminError" class="error-message">Accès refusé</div>
   </div>

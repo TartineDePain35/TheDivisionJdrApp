@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Division JDR - Créer une Aventure</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="admin-container">
+    <header class="admin-header">
+      <h1>Créer une Aventure</h1>
+      <nav class="admin-nav">
+        <a href="/admin/adventures" class="btn btn-tertiary">Retour aux aventures</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="create-form">
+        <h2>Nouvelle Aventure</h2>
+        <p style="color: #888; text-align: center;">Remplissez les informations pour créer une nouvelle aventure.</p>
+        
+        <form id="adventureForm">
+          <label for="adventureName">Nom de l'aventure *</label>
+          <input id="adventureName" name="name" type="text" placeholder="Ex: Mission à Washington" required />
+          
+          <label for="adventureDescription">Description</label>
+          <textarea id="adventureDescription" name="description" placeholder="Décrivez le scénario, les objectifs et le contexte de cette aventure..." style="min-height: 200px;"></textarea>
+          
+          <div class="form-actions">
+            <button type="button" onclick="window.location.href='/admin/adventures'" class="btn btn-tertiary">Annuler</button>
+            <button type="submit" class="btn btn-primary">Créer l'Aventure</button>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.getElementById('adventureForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('adventureName').value.trim();
+      const description = document.getElementById('adventureDescription').value.trim();
+      
+      if (!name) {
+        alert('Le nom de l\'aventure est requis.');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/admin/adventures', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, description })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Aventure créée avec succès !');
+          window.location.href = `/admin/adventures/${data.adventureId}/edit`;
+        } else {
+          alert('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        console.error('Erreur lors de la création:', error);
+        alert('Erreur réseau. Veuillez réessayer.');
+      }
+    });
+  </script>
+</body>
+</html>

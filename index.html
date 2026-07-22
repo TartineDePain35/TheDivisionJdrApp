@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Division JDR</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -32,6 +32,47 @@
             <button id="createAgentBtn" class="btn btn-secondary">Créer un nouvel agent</button>
             <a href="/admin/login" class="admin-link">espace admin</a>
           </div>
+        </div>
+      </section>
+
+      <section id="agentWaitingScreen" class="page">
+        <div class="hero-card">
+          <div class="agent-status-icon">⏳</div>
+          <div class="hero-title">Agent en attente d'activation</div>
+          <p class="hero-text">Vous n'avez pas encore été activé pour une mission.</p>
+
+          <div id="agentWaitingContent">
+            <div id="agentInvitationView" class="invitation-container" style="display: none;">
+              <p style="color: var(--text-muted); margin-bottom: 20px;">
+                Vous avez été invité à rejoindre une aventure !
+              </p>
+              <div class="invitation-details">
+                <h3 id="agentInvitationAdventureName">Nom de l'aventure</h3>
+                <p><strong>Description :</strong></p>
+                <p id="agentInvitationAdventureDescription">Description de l'aventure...</p>
+              </div>
+              <div class="invitation-actions">
+                <button id="agentRejectInvitationBtn" class="btn btn-secondary">Refuser</button>
+                <button id="agentAcceptInvitationBtn" class="btn btn-primary">Accepter</button>
+              </div>
+            </div>
+
+            <div id="agentDormantView" class="dormant-container">
+              <p style="color: var(--text-muted); font-size: 1rem; line-height: 1.6; margin-bottom: 20px;">
+                <strong>Vous êtes actuellement dormant.</strong>
+              </p>
+              <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6;">
+                Vous n'avez pas encore reçu d'invitation pour une aventure.
+              </p>
+              <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-top: 16px;">
+                Un administrateur doit vous inviter pour activer votre compte. Patientez ou contactez votre responsable.
+              </p>
+            </div>
+          </div>
+
+          <button id="agentWaitingBackBtn" class="btn btn-tertiary" style="margin-top: 24px;">
+            Retour à la connexion
+          </button>
         </div>
       </section>
 
@@ -243,6 +284,12 @@
 
         <div id="dashboardView">
           <div class="dashboard-grid">
+            <article class="dashboard-card adventure-card">
+              <h3>Aventure active</h3>
+              <p id="adventureName">Aucune aventure en cours</p>
+              <p id="adventureDescription" style="font-size: 14px; color: #aaa; margin-top: 10px;"></p>
+            </article>
+
             <article class="dashboard-card mission-card">
               <h3>Mission active</h3>
               <p id="missionDescription">Préparez votre équipement et partez en exploration. Vous êtes le dernier rempart.</p>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Division JDR - Gestion des Aventures</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="admin-container">
+    <header class="admin-header">
+      <h1>Aventures</h1>
+      <nav class="admin-nav">
+        <a href="/admin/dashboard" class="btn btn-tertiary">Tableau de bord</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="header-actions">
+        <h2>Mes Aventures</h2>
+        <a href="/admin/adventures/create" class="btn btn-primary">+ Nouvelle Aventure</a>
+      </div>
+
+      <div id="loading" class="loading">Chargement des aventures...</div>
+      
+      <div id="adventureList" class="adventure-list" style="display: none;"></div>
+      
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <p>Aucune aventure créée pour le moment.</p>
+        <a href="/admin/adventures/create" class="btn btn-primary">Créer une aventure</a>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Charger les aventures au démarrage
+    async function loadAdventures() {
+      try {
+        const response = await fetch('/api/admin/adventures');
+        const data = await response.json();
+        
+        if (data.success && data.adventures) {
+          renderAdventures(data.adventures);
+        } else {
+          showEmptyState();
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des aventures:', error);
+        document.getElementById('loading').textContent = 'Erreur de chargement.';
+      }
+    }
+
+    function renderAdventures(adventures) {
+      const listEl = document.getElementById('adventureList');
+      const loadingEl = document.getElementById('loading');
+      const emptyEl = document.getElementById('emptyState');
+      
+      if (adventures.length === 0) {
+        showEmptyState();
+        return;
+      }
+      
+      loadingEl.style.display = 'none';
+      listEl.style.display = 'grid';
+      emptyEl.style.display = 'none';
+      
+      listEl.innerHTML = adventures.map(adventure => `
+        <div class="adventure-card">
+          <h3>${escapeHtml(adventure.name)}</h3>
+          <p>${escapeHtml(adventure.description || 'Aucune description')}</p>
+          <p><small>Créée le: ${new Date(adventure.createdAt).toLocaleDateString('fr-FR')}</small></p>
+          <div class="status ${adventure.isActive ? 'active' : 'inactive'}">
+            ${adventure.isActive ? 'Active' : 'Inactive'}
+          </div>
+          <div class="actions">
+            <a href="/admin/adventures/${adventure.id}/edit" class="btn btn-secondary">Gérer</a>
+            <button onclick="deleteAdventure(${adventure.id})" class="btn btn-danger">Supprimer</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function showEmptyState() {
+      const listEl = document.getElementById('adventureList');
+      const loadingEl = document.getElementById('loading');
+      const emptyEl = document.getElementById('emptyState');
+      
+      loadingEl.style.display = 'none';
+      listEl.style.display = 'none';
+      emptyEl.style.display = 'block';
+    }
+
+    async function deleteAdventure(adventureId) {
+      if (!confirm('Voulez-vous vraiment supprimer cette aventure ?')) return;
+      
+      try {
+        const response = await fetch(`/api/admin/adventures/${adventureId}`, {
+          method: 'DELETE'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Aventure supprimée avec succès.');
+          loadAdventures();
+        } else {
+          alert('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        alert('Erreur réseau.');
+      }
+    }
+
+    // Échapper le HTML pour éviter les XSS
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Charger les aventures au chargement de la page
+    loadAdventures();
+  </script>
+</body>
+</html>
