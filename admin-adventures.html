@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Division JDR - Gestion des Aventures</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .admin-container {
+      width: min(100%, 560px);
+      max-width: 560px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: calc(env(safe-area-inset-top, 18px) + 14px) 16px 28px;
+      position: relative;
+    }
+    
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    
+    .admin-header h1 {
+      margin: 0;
+      color: var(--accent);
+      font-size: 1.4rem;
+      letter-spacing: 0.08em;
+    }
+    
+    .admin-nav {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .adventure-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      margin-top: 18px;
+    }
+    
+    .adventure-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      color: var(--text);
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    
+    .adventure-card:hover {
+      transform: translateY(-1px);
+      background: var(--panel-strong);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+    
+    .adventure-card h3 {
+      margin: 0 0 12px;
+      color: var(--accent);
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    
+    .adventure-card p {
+      color: var(--text-muted);
+      margin: 8px 0;
+      line-height: 1.6;
+      font-size: 0.92rem;
+    }
+    
+    .adventure-card .status {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 14px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .adventure-card .status.active {
+      background: rgba(40, 167, 69, 0.18);
+      color: #28a745;
+      border: 1px solid rgba(40, 167, 69, 0.32);
+    }
+    
+    .adventure-card .status.inactive {
+      background: rgba(220, 53, 69, 0.18);
+      color: #dc3545;
+      border: 1px solid rgba(220, 53, 69, 0.32);
+    }
+    
+    .adventure-card .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    
+    .adventure-card .actions .btn {
+      flex: 1;
+      padding: 12px 14px;
+      font-size: 0.85rem;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+    }
+    
+    .empty-state p {
+      margin: 0 0 16px;
+    }
+    
+    .header-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    
+    .header-actions h2 {
+      margin: 0;
+      color: var(--text);
+      font-size: 1.1rem;
+      letter-spacing: 0.05em;
+    }
+    
+    .loading {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-container">
+    <header class="admin-header">
+      <h1>Aventures</h1>
+      <nav class="admin-nav">
+        <a href="/admin/dashboard" class="btn btn-tertiary">Tableau de bord</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="header-actions">
+        <h2>Mes Aventures</h2>
+        <a href="/admin/adventures/create" class="btn btn-primary">+ Nouvelle Aventure</a>
+      </div>
+
+      <div id="loading" class="loading">Chargement des aventures...</div>
+      
+      <div id="adventureList" class="adventure-list" style="display: none;"></div>
+      
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <p>Aucune aventure créée pour le moment.</p>
+        <a href="/admin/adventures/create" class="btn btn-primary">Créer une aventure</a>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Charger les aventures au démarrage
+    async function loadAdventures() {
+      try {
+        const response = await fetch('/api/admin/adventures');
+        const data = await response.json();
+        
+        if (data.success && data.adventures) {
+          renderAdventures(data.adventures);
+        } else {
+          showEmptyState();
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des aventures:', error);
+        document.getElementById('loading').textContent = 'Erreur de chargement.';
+      }
+    }
+
+    function renderAdventures(adventures) {
+      const listEl = document.getElementById('adventureList');
+      const loadingEl = document.getElementById('loading');
+      const emptyEl = document.getElementById('emptyState');
+      
+      if (adventures.length === 0) {
+        showEmptyState();
+        return;
+      }
+      
+      loadingEl.style.display = 'none';
+      listEl.style.display = 'grid';
+      emptyEl.style.display = 'none';
+      
+      listEl.innerHTML = adventures.map(adventure => `
+        <div class="adventure-card">
+          <h3>${escapeHtml(adventure.name)}</h3>
+          <p>${escapeHtml(adventure.description || 'Aucune description')}</p>
+          <p><small>Créée le: ${new Date(adventure.createdAt).toLocaleDateString('fr-FR')}</small></p>
+          <div class="status ${adventure.isActive ? 'active' : 'inactive'}">
+            ${adventure.isActive ? 'Active' : 'Inactive'}
+          </div>
+          <div class="actions">
+            <a href="/admin/adventures/${adventure.id}/edit" class="btn btn-secondary">Gérer</a>
+            <button onclick="deleteAdventure(${adventure.id})" class="btn btn-danger">Supprimer</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function showEmptyState() {
+      const listEl = document.getElementById('adventureList');
+      const loadingEl = document.getElementById('loading');
+      const emptyEl = document.getElementById('emptyState');
+      
+      loadingEl.style.display = 'none';
+      listEl.style.display = 'none';
+      emptyEl.style.display = 'block';
+    }
+
+    async function deleteAdventure(adventureId) {
+      if (!confirm('Voulez-vous vraiment supprimer cette aventure ?')) return;
+      
+      try {
+        const response = await fetch(`/api/admin/adventures/${adventureId}`, {
+          method: 'DELETE'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Aventure supprimée avec succès.');
+          loadAdventures();
+        } else {
+          alert('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        alert('Erreur réseau.');
+      }
+    }
+
+    // Échapper le HTML pour éviter les XSS
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Charger les aventures au chargement de la page
+    loadAdventures();
+  </script>
+</body>
+</html>

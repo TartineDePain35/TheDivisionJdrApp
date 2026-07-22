@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Division JDR - Invitation à une Aventure</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .invitation-container {
+      max-width: 600px;
+      margin: 20px auto 0;
+      background: var(--panel-strong);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 28px;
+      padding: 24px;
+      color: var(--text);
+      text-align: center;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .invitation-icon {
+      font-size: 60px;
+      margin-bottom: 16px;
+      color: var(--accent);
+    }
+    .invitation-title {
+      color: var(--accent);
+      margin-bottom: 12px;
+      font-size: clamp(1.7rem, 5vw, 2.2rem);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      line-height: 1.05;
+    }
+    .invitation-details {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: left;
+    }
+    .invitation-details h3 {
+      color: var(--accent);
+      margin: 0 0 14px;
+      font-size: 1.1rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 12px;
+    }
+    .invitation-details p {
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 0 0 12px;
+    }
+    .invitation-actions {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin-top: 24px;
+    }
+    .invitation-actions .btn {
+      flex: 1;
+      max-width: 220px;
+      padding: 16px 18px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .btn-reject {
+      background: rgba(255, 143, 31, 0.14);
+      color: var(--text);
+      border: 1px solid rgba(255, 143, 31, 0.32);
+    }
+    .btn-reject:hover:not(:disabled) {
+      background: rgba(255, 143, 31, 0.22);
+      transform: translateY(-1px);
+    }
+    .loading {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .error {
+      color: #ff6b6b;
+      margin: 16px 0;
+    }
+    .back-link {
+      display: block;
+      margin-top: 24px;
+      color: var(--text-muted);
+      text-decoration: none;
+      cursor: pointer;
+      font-size: 0.92rem;
+      opacity: 0.7;
+      transition: opacity 0.2s, color 0.2s;
+    }
+    .back-link:hover {
+      opacity: 1;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="brand-bar">
+      <div class="brand-logo">THE DIVISION - JDR</div>
+    </header>
+
+    <main>
+      <div class="invitation-container">
+        <div class="invitation-icon">📜</div>
+        <h1 class="invitation-title">Nouvelle Invitation</h1>
+        
+        <div id="loading" class="loading">Chargement de l'invitation...</div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="invitationContent" style="display: none;">
+          <p style="color: #aaa; font-size: 16px;">
+            Vous avez été invité à rejoindre une nouvelle aventure !
+          </p>
+          
+          <div class="invitation-details">
+            <h3 id="adventureName">Nom de l'aventure</h3>
+            <p><strong>Description :</strong></p>
+            <p id="adventureDescription">Description de l'aventure...</p>
+          </div>
+          
+          <div class="invitation-actions">
+            <button id="rejectBtn" class="btn btn-secondary btn-reject">Refuser</button>
+            <button id="acceptBtn" class="btn btn-primary">Accepter</button>
+          </div>
+          
+          <div class="back-link" onclick="window.location.href='/'">
+            Retour à l'accueil
+          </div>
+        </div>
+        
+        <div id="noInvitation" style="display: none;">
+          <p style="color: #888;">Vous n'avez aucune invitation en attente.</p>
+          <p style="color: #aaa; margin-top: 20px;">
+            Vous serez notifié dès qu'un administrateur vous invitera à rejoindre une aventure.
+          </p>
+          <div class="back-link" onclick="window.location.href='/'">
+            Retour à l'accueil
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Récupérer l'agent depuis l'URL ou le localStorage
+    // Pour l'instant, on utilise un agentId passé en paramètre
+    const urlParams = new URLSearchParams(window.location.search);
+    const agentId = Number(urlParams.get('agentId'));
+    
+    // Charger l'invitation au démarrage
+    async function loadInvitation() {
+      if (!agentId || isNaN(agentId)) {
+        showError('Identifiant agent manquant.');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/agent/invitations?agentId=${agentId}`);
+        const data = await response.json();
+        
+        if (data.success && data.invitation) {
+          renderInvitation(data.invitation);
+        } else {
+          showNoInvitation();
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'invitation:', error);
+        showError('Erreur de chargement. Veuillez réessayer.');
+      }
+    }
+    
+    function renderInvitation(invitation) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('invitationContent').style.display = 'block';
+      
+      document.getElementById('adventureName').textContent = invitation.adventureName || 'Aventure inconnue';
+      document.getElementById('adventureDescription').textContent = 
+        invitation.adventureDescription || 'Aucune description fournie.';
+      
+      // Gérer les actions
+      document.getElementById('acceptBtn').onclick = () => acceptInvitation(invitation.id);
+      document.getElementById('rejectBtn').onclick = () => rejectInvitation(invitation.id);
+    }
+    
+    function showNoInvitation() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('noInvitation').style.display = 'block';
+    }
+    
+    function showError(message) {
+      document.getElementById('loading').style.display = 'none';
+      const errorEl = document.getElementById('error');
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    }
+    
+    async function acceptInvitation(invitationId) {
+      try {
+        const response = await fetch(`/api/agent/invitations/${invitationId}/accept`, {
+          method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Invitation acceptée avec succès ! Vous allez être redirigé vers votre tableau de bord.');
+          // Rediriger vers l'accueil, le login va gérer la redirection
+          window.location.href = '/';
+        } else {
+          alert('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'acceptation:', error);
+        alert('Erreur réseau. Veuillez réessayer.');
+      }
+    }
+    
+    async function rejectInvitation(invitationId) {
+      if (!confirm('Voulez-vous vraiment refuser cette invitation ? Vous pourrez toujours être réinvité plus tard.')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/agent/invitations/${invitationId}/reject`, {
+          method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Invitation refusée. Vous pouvez toujours accepter une future invitation.');
+          window.location.href = '/';
+        } else {
+          alert('Erreur: ' + (data.message || 'Inconnu'));
+        }
+      } catch (error) {
+        console.error('Erreur lors du refus:', error);
+        alert('Erreur réseau. Veuillez réessayer.');
+      }
+    }
+    
+    // Charger au démarrage
+    loadInvitation();
+  </script>
+</body>
+</html>

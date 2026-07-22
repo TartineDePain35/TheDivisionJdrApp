@@ -245,6 +245,17 @@ input::placeholder {
   border: 1px solid rgba(255,255,255,0.18);
 }
 
+.btn-danger {
+  background: rgba(220, 53, 69, 0.18);
+  color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.32);
+}
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+
 .small-btn {
   max-width: 220px;
 }
