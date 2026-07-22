@@ -141,22 +141,29 @@
     // Charger les agents de l'aventure
     async function loadAdventureAgents() {
       try {
-        const response = await fetch(`/api/admin/adventures/${adventureId}/agents`);
+        const response = await fetch(`/api/admin/adventures/${adventureId}/invitations`);
         const data = await response.json();
         
         const listEl = document.getElementById('agentsList');
-        if (data.success && data.agents && data.agents.length > 0) {
-          listEl.innerHTML = data.agents.map(agent => `
-            <div class="agent-item">
-              <div class="info">
-                <div class="name">${escapeHtml(agent.name)} ${escapeHtml(agent.firstName)}</div>
-                <div class="profession">${escapeHtml(agent.profession || 'Aucune profession')}</div>
+        if (data.success && data.invitations && data.invitations.length > 0) {
+          // Filtrer uniquement les invitations acceptées (agents actifs)
+          const acceptedInvitations = data.invitations.filter(inv => inv.status === 'accepted');
+          
+          if (acceptedInvitations.length > 0) {
+            listEl.innerHTML = acceptedInvitations.map(inv => `
+              <div class="agent-item">
+                <div class="info">
+                  <div class="name">${escapeHtml(inv.agentName)}</div>
+                  <div class="profession">Agent</div>
+                </div>
+                <span class="invitation-status accepted">Actif</span>
               </div>
-              <span class="invitation-status accepted">Actif</span>
-            </div>
-          `).join('');
+            `).join('');
+          } else {
+            listEl.innerHTML = '<div class="loading">Aucun agent actif dans cette aventure.</div>';
+          }
         } else {
-          listEl.innerHTML = '<div class="loading">Aucun agent dans cette aventure.</div>';
+          listEl.innerHTML = '<div class="loading">Aucun agent actif dans cette aventure.</div>';
         }
       } catch (error) {
         console.error('Erreur lors du chargement des agents:', error);
