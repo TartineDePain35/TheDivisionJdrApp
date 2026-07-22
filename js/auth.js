@@ -174,10 +174,16 @@ export async function loginAgent(name, password) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, password }),
     });
-    return result.agent;
+    // Retourner toutes les données (agent, adventure, pendingInvitation)
+    return result;
   } catch {
     // Fallback vers la connexion locale
-    return loginAgentLocally(name, password);
+    const agent = loginAgentLocally(name, password);
+    if (agent) {
+      // Pour la connexion locale, on n'a pas d'aventure ou d'invitation
+      return { success: true, agent, adventure: null, pendingInvitation: null };
+    }
+    return null;
   }
 }
 

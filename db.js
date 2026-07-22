@@ -300,21 +300,6 @@ function loadEffectsFromJson() {
   }
 }
 
-function ensureFirstAgentHasDefaultEffect() {
-  const agentRow = get('SELECT id FROM agents ORDER BY id LIMIT 1');
-  if (!agentRow) {
-    return;
-  }
-  const effectRow = get('SELECT id FROM effects WHERE name = ? LIMIT 1', ['Blessure handicapante']);
-  if (!effectRow) {
-    return;
-  }
-  const assigned = get('SELECT id FROM agent_effects_value WHERE agentId = ? AND effectId = ?', [agentRow.id, effectRow.id]);
-  if (!assigned) {
-    run('INSERT INTO agent_effects_value (agentId, effectId) VALUES (?, ?)', [agentRow.id, effectRow.id]);
-  }
-}
-
 function loadTalentsFromJson() {
   const talentsJsonPath = path.join(__dirname, 'json', 'talents.json');
   console.log('Chemin vers talents.json:', talentsJsonPath);
@@ -327,32 +312,44 @@ function loadTalentsFromJson() {
 
   try {
     const payload = fs.readFileSync(talentsJsonPath, 'utf8');
-    const talents = JSON.parse(payload);
-    console.log('Talents lus depuis JSON:', talents.length, 'talents');
+    const jsonTalents = JSON.parse(payload);
+    console.log('Talents lus depuis JSON:', jsonTalents.length, 'talents');
     
-    // Vider la table avant de charger les nouveaux talents
-    run('DELETE FROM talents');
-    
-    // Insérer les talents avec des IDs séquentiels (1, 2, 3, ...)
-    const insertStmt = db.prepare(
-      'INSERT INTO talents (id, title, description) VALUES (?, ?, ?)'
-    );
-    for (let i = 0; i < talents.length; i++) {
-      const talent = talents[i];
-      insertStmt.bind([
-        i + 1,  // ID séquentiel commençant à 1
-        talent.title || '',
-        talent.description || '',
-      ]);
-      insertStmt.run();
+    // ✅ NOUVELLE LOGIQUE : Synchronisation sans suppression
+    for (const jsonTalent of jsonTalents) {
+      if (!jsonTalent.title) continue; // Sécurité
+      
+      // Vérifier si un talent avec ce title existe déjà
+      const existingTalent = get(
+        'SELECT id FROM talents WHERE title = ?',
+        [jsonTalent.title]
+      );
+      
+      if (existingTalent) {
+        // ✅ Mettre à jour la description si le talent existe
+        run(
+          'UPDATE talents SET description = ? WHERE id = ?',
+          [jsonTalent.description || '', existingTalent.id]
+        );
+        console.log(`Talent "${jsonTalent.title}" mis à jour (ID: ${existingTalent.id})`);
+      } else {
+        // ✅ Ajouter le nouveau talent (sans supprimer les anciens)
+        const insertStmt = db.prepare(
+          'INSERT INTO talents (title, description) VALUES (?, ?)'
+        );
+        insertStmt.bind([jsonTalent.title || '', jsonTalent.description || '']);
+        insertStmt.run();
+        insertStmt.free();
+        console.log(`Talent "${jsonTalent.title}" ajouté (nouvel ID: ${lastInsertId()})`);
+      }
     }
-    insertStmt.free();
-    saveDatabase();
-    console.log('Talents chargés depuis talents.json avec succès');
     
-    // Vérification
+    saveDatabase();
+    console.log('Synchronisation des talents terminée');
+    
+    // Vérification finale
     const allTalents = all('SELECT * FROM talents');
-    console.log('Talents dans la base de données après chargement:', allTalents.length);
+    console.log('Talents dans la base de données:', allTalents.length);
   } catch (error) {
     console.error('Impossible de charger talents.json:', error);
   }
@@ -660,10 +657,12 @@ async function initializeDatabase() {
       availableTalentPoints INTEGER DEFAULT 0,
       lifePercent INTEGER,
       activeMission TEXT,
+      currentAdventureId INTEGER DEFAULT NULL,
       inventoryCapacity INTEGER,
       xp INTEGER DEFAULT 0,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(currentAdventureId) REFERENCES adventures(id) ON DELETE SET NULL
     );
   `);
 
@@ -942,6 +941,36 @@ async function initializeDatabase() {
     );
   `);
 
+  // ============ ADVENTURES DATABASE SCHEMA ============
+
+  // Table pour les aventures (gérées par les admins)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS adventures (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      adminId INTEGER NOT NULL,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      isActive BOOLEAN DEFAULT TRUE
+    );
+  `);
+
+  // Table pour les invitations aux aventures
+  db.run(`
+    CREATE TABLE IF NOT EXISTS adventure_invitations (
+      id INTEGER PRIMARY KEY,
+      adventureId INTEGER NOT NULL,
+      agentId INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(adventureId) REFERENCES adventures(id) ON DELETE CASCADE,
+      FOREIGN KEY(agentId) REFERENCES agents(id) ON DELETE CASCADE,
+      UNIQUE(adventureId, agentId)
+    );
+  `);
+
   // ============ STATS DATABASE SCHEMA ============
 
   db.run(`
@@ -998,9 +1027,6 @@ async function initializeDatabase() {
     console.warn('Impossible de migrer les noms des groupes d\'attributs:', e.message);
   }
 
-  insertDefaultTalents();
-  ensureFirstAgentHasDefaultEffect();
-  
   saveDatabase();
 }
 
@@ -1518,6 +1544,193 @@ async function setAgentTalentsAsync(agentId, talentIds) {
   setAgentTalents(agentId, talentIds);
 }
 
+// ============ ADVENTURES ============
+
+// Créer une nouvelle aventure
+function createAdventure(name, description, adminId) {
+  const stmt = db.prepare('INSERT INTO adventures (name, description, adminId) VALUES (?, ?, ?)');
+  stmt.bind([name, description, adminId]);
+  const result = stmt.run();
+  stmt.free();
+  saveDatabase();
+  return result.lastInsertRowid;
+}
+
+// Récupérer toutes les aventures d'un admin
+function getAdventuresByAdmin(adminId) {
+  return all('SELECT * FROM adventures WHERE adminId = ? ORDER BY createdAt DESC', [adminId]);
+}
+
+// Récupérer une aventure par ID
+function getAdventureById(id) {
+  return get('SELECT * FROM adventures WHERE id = ?', [id]);
+}
+
+// Mettre à jour une aventure
+function updateAdventure(id, name, description, isActive) {
+  run('UPDATE adventures SET name = ?, description = ?, isActive = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?', 
+    [name, description, isActive, id]);
+  saveDatabase();
+}
+
+// Supprimer une aventure
+function deleteAdventure(id) {
+  run('DELETE FROM adventures WHERE id = ?', [id]);
+  saveDatabase();
+}
+
+// Créer une invitation pour un agent à une aventure
+function createInvitation(adventureId, agentId) {
+  const stmt = db.prepare('INSERT INTO adventure_invitations (adventureId, agentId, status) VALUES (?, ?, ?)');
+  stmt.bind([adventureId, agentId, 'pending']);
+  const result = stmt.run();
+  stmt.free();
+  saveDatabase();
+  return result.lastInsertRowid;
+}
+
+// Récupérer une invitation par ID
+function getInvitationById(id) {
+  return get('SELECT * FROM adventure_invitations WHERE id = ?', [id]);
+}
+
+// Récupérer les invitations d'une aventure
+function getInvitationsByAdventure(adventureId) {
+  return all('SELECT ai.*, a.name as agentName FROM adventure_invitations ai JOIN agents a ON ai.agentId = a.id WHERE ai.adventureId = ?', [adventureId]);
+}
+
+// Récupérer les invitations en attente d'un agent
+function getPendingInvitationByAgentId(agentId) {
+  return get('SELECT ai.*, adv.name as adventureName, adv.description as adventureDescription FROM adventure_invitations ai JOIN adventures adv ON ai.adventureId = adv.id WHERE ai.agentId = ? AND ai.status = ?', [agentId, 'pending']);
+}
+
+// Récupérer toutes les invitations d'un agent
+function getInvitationsByAgentId(agentId) {
+  return all('SELECT ai.*, adv.name as adventureName FROM adventure_invitations ai JOIN adventures adv ON ai.adventureId = adv.id WHERE ai.agentId = ?', [agentId]);
+}
+
+// Accepter une invitation
+function acceptInvitation(invitationId) {
+  const invitation = get('SELECT * FROM adventure_invitations WHERE id = ?', [invitationId]);
+  if (invitation && invitation.status === 'pending') {
+    run('UPDATE adventure_invitations SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?', ['accepted', invitationId]);
+    run('UPDATE agents SET currentAdventureId = ? WHERE id = ?', [invitation.adventureId, invitation.agentId]);
+    saveDatabase();
+    return true;
+  }
+  return false;
+}
+
+// Refuser une invitation
+function rejectInvitation(invitationId) {
+  run('UPDATE adventure_invitations SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?', ['rejected', invitationId]);
+  saveDatabase();
+  return true;
+}
+
+// Récupérer les agents sans aventure (dormants)
+function getAgentsWithoutAdventure() {
+  return all('SELECT * FROM agents WHERE currentAdventureId IS NULL');
+}
+
+// Récupérer les agents d'une aventure
+function getAgentsByAdventure(adventureId) {
+  return all('SELECT a.* FROM agents a JOIN adventure_invitations ai ON a.id = ai.agentId WHERE ai.adventureId = ? AND ai.status = ?', [adventureId, 'accepted']);
+}
+
+// Vérifier si un agent a déjà une aventure active
+function hasActiveAdventure(agentId) {
+  const result = get('SELECT currentAdventureId FROM agents WHERE id = ?', [agentId]);
+  return result && result.currentAdventureId !== null;
+}
+
+// Retirer un agent d'une aventure (le mettre en dormant)
+function removeAgentFromAdventure(agentId) {
+  run('UPDATE agents SET currentAdventureId = NULL WHERE id = ?', [agentId]);
+  saveDatabase();
+}
+
+// Async versions for adventures
+async function createAdventureAsync(name, description, adminId) {
+  await ensureReady();
+  return createAdventure(name, description, adminId);
+}
+
+async function getAdventuresByAdminAsync(adminId) {
+  await ensureReady();
+  return getAdventuresByAdmin(adminId);
+}
+
+async function getAdventureByIdAsync(id) {
+  await ensureReady();
+  return getAdventureById(id);
+}
+
+async function updateAdventureAsync(id, name, description, isActive) {
+  await ensureReady();
+  updateAdventure(id, name, description, isActive);
+}
+
+async function deleteAdventureAsync(id) {
+  await ensureReady();
+  deleteAdventure(id);
+}
+
+async function createInvitationAsync(adventureId, agentId) {
+  await ensureReady();
+  return createInvitation(adventureId, agentId);
+}
+
+async function getInvitationByIdAsync(id) {
+  await ensureReady();
+  return getInvitationById(id);
+}
+
+async function getInvitationsByAdventureAsync(adventureId) {
+  await ensureReady();
+  return getInvitationsByAdventure(adventureId);
+}
+
+async function getPendingInvitationByAgentIdAsync(agentId) {
+  await ensureReady();
+  return getPendingInvitationByAgentId(agentId);
+}
+
+async function getInvitationsByAgentIdAsync(agentId) {
+  await ensureReady();
+  return getInvitationsByAgentId(agentId);
+}
+
+async function acceptInvitationAsync(invitationId) {
+  await ensureReady();
+  return acceptInvitation(invitationId);
+}
+
+async function rejectInvitationAsync(invitationId) {
+  await ensureReady();
+  return rejectInvitation(invitationId);
+}
+
+async function getAgentsWithoutAdventureAsync() {
+  await ensureReady();
+  return getAgentsWithoutAdventure();
+}
+
+async function getAgentsByAdventureAsync(adventureId) {
+  await ensureReady();
+  return getAgentsByAdventure(adventureId);
+}
+
+async function hasActiveAdventureAsync(agentId) {
+  await ensureReady();
+  return hasActiveAdventure(agentId);
+}
+
+async function removeAgentFromAdventureAsync(agentId) {
+  await ensureReady();
+  removeAgentFromAdventure(agentId);
+}
+
 // ============ MESSAGES ============
 
 // Créer un message pour un agent
@@ -1641,6 +1854,25 @@ module.exports = {
   deleteMessage: deleteMessageAsync,
   deleteMessagesByAgentId: deleteMessagesByAgentIdAsync,
   markMessageAsRead: markMessageAsReadAsync,
+  // Adventures
+  createAdventure: createAdventureAsync,
+  getAdventuresByAdmin: getAdventuresByAdminAsync,
+  getAdventureById: getAdventureByIdAsync,
+  updateAdventure: updateAdventureAsync,
+  deleteAdventure: deleteAdventureAsync,
+  // Invitations
+  createInvitation: createInvitationAsync,
+  getInvitationById: getInvitationByIdAsync,
+  getInvitationsByAdventure: getInvitationsByAdventureAsync,
+  getPendingInvitationByAgentId: getPendingInvitationByAgentIdAsync,
+  getInvitationsByAgentId: getInvitationsByAgentIdAsync,
+  acceptInvitation: acceptInvitationAsync,
+  rejectInvitation: rejectInvitationAsync,
+  // Agents & Adventures
+  getAgentsWithoutAdventure: getAgentsWithoutAdventureAsync,
+  getAgentsByAdventure: getAgentsByAdventureAsync,
+  hasActiveAdventure: hasActiveAdventureAsync,
+  removeAgentFromAdventure: removeAgentFromAdventureAsync,
 };
 
 // Migration pour ajouter la colonne is_read à agent_messages

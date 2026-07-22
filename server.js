@@ -213,7 +213,16 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Authentification échouée.' });
     }
 
-    res.json({ success: true, agent });
+    // Récupérer l'aventure active et les invitations de l'agent
+    const adventure = agent.currentAdventureId ? await db.getAdventureById(agent.currentAdventureId) : null;
+    const pendingInvitation = await db.getPendingInvitationByAgentId(agent.id);
+
+    res.json({ 
+      success: true, 
+      agent, 
+      adventure,          // Aventure active (null si dormant)
+      pendingInvitation  // Invitation en attente (null si aucune)
+    });
   } catch (error) {
     console.error('Erreur lors de la connexion:', error);
     res.status(500).json({ 
@@ -260,6 +269,24 @@ app.get('/admin/dashboard', (req, res) => {
 
 app.get('/admin/agent/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin-agent-edit.html'));
+});
+
+// Routes pour les pages d'aventures
+app.get('/admin/adventures', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-adventures.html'));
+});
+
+app.get('/admin/adventures/create', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-adventure-create.html'));
+});
+
+app.get('/admin/adventures/:id/edit', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-adventure-edit.html'));
+});
+
+// Route pour la page d'invitation des agents
+app.get('/agent/invitation', (req, res) => {
+  res.sendFile(path.join(__dirname, 'agent-invitation.html'));
 });
 
 // ============ MESSAGES ENDPOINTS ============
@@ -358,6 +385,378 @@ app.patch('/api/messages/:id/read', async (req, res) => {
     res.json({ success: true, message: 'Message marqué comme lu.' });
   } catch (error) {
     console.error('Erreur lors du marquage du message comme lu:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// ============ ADVENTURE ROUTES ============
+
+// GET /api/admin/adventures - Liste des aventures de l'admin
+app.get('/api/admin/adventures', async (req, res) => {
+  try {
+    // Dans cette implémentation, on suppose que l'admin est identifié par une session
+    // Pour l'instant, on utilise adminId = 1 (AdminAgent par défaut)
+    const adminId = 1; // TODO: Récupérer depuis la session
+    const adventures = await db.getAdventuresByAdmin(adminId);
+    res.json({ success: true, adventures });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des aventures:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// POST /api/admin/adventures - Créer une nouvelle aventure
+app.post('/api/admin/adventures', async (req, res) => {
+  try {
+    const { name, description } = req.body || {};
+    
+    if (!name) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Le nom de l\'aventure est requis.' 
+      });
+    }
+    
+    const adminId = 1; // TODO: Récupérer depuis la session
+    const adventureId = await db.createAdventure(name, description, adminId);
+    
+    res.json({ success: true, adventureId, message: 'Aventure créée avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors de la création de l\'aventure:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// GET /api/admin/adventures/:id - Détails d'une aventure
+app.get('/api/admin/adventures/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant aventure invalide.' 
+      });
+    }
+    
+    const adventure = await db.getAdventureById(id);
+    if (!adventure) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Aventure introuvable.' 
+      });
+    }
+    
+    // Vérifier que l'admin est le propriétaire (pour l'instant, on saute cette vérif)
+    res.json({ success: true, adventure });
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'aventure:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// PUT /api/admin/adventures/:id - Mettre à jour une aventure
+app.put('/api/admin/adventures/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { name, description, isActive } = req.body || {};
+    
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant aventure invalide.' 
+      });
+    }
+    
+    if (!name) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Le nom de l\'aventure est requis.' 
+      });
+    }
+    
+    const adventure = await db.getAdventureById(id);
+    if (!adventure) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Aventure introuvable.' 
+      });
+    }
+    
+    await db.updateAdventure(id, name, description, isActive !== undefined ? isActive : true);
+    res.json({ success: true, message: 'Aventure mise à jour avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de l\'aventure:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// DELETE /api/admin/adventures/:id - Supprimer une aventure
+app.delete('/api/admin/adventures/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant aventure invalide.' 
+      });
+    }
+    
+    const adventure = await db.getAdventureById(id);
+    if (!adventure) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Aventure introuvable.' 
+      });
+    }
+    
+    // Quand on supprime une aventure, les invitations sont supprimées en cascade (FOREIGN KEY)
+    // Mais on doit aussi mettre à jour les agents qui étaient dans cette aventure
+    const agentsInAdventure = await db.getAgentsByAdventure(id);
+    for (const agent of agentsInAdventure) {
+      await db.removeAgentFromAdventure(agent.id);
+    }
+    
+    await db.deleteAdventure(id);
+    res.json({ success: true, message: 'Aventure supprimée avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de l\'aventure:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// GET /api/admin/adventures/:id/agents - Liste des agents disponibles pour invitation
+app.get('/api/admin/adventures/:id/agents', async (req, res) => {
+  try {
+    const adventureId = Number(req.params.id);
+    
+    if (!adventureId || isNaN(adventureId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant aventure invalide.' 
+      });
+    }
+    
+    // Récupérer les agents sans aventure OU dans d'autres aventures
+    const availableAgents = await db.getAgentsWithoutAdventure();
+    
+    // Filtrer pour ne pas inclure ceux déjà invités à cette aventure
+    const invitations = await db.getInvitationsByAdventure(adventureId);
+    const invitedAgentIds = new Set(invitations.map(i => i.agentId));
+    
+    const filteredAgents = availableAgents.filter(agent => !invitedAgentIds.has(agent.id));
+    
+    res.json({ success: true, agents: filteredAgents });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des agents disponibles:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// POST /api/admin/adventures/:id/invite - Inviter un ou plusieurs agents à une aventure
+app.post('/api/admin/adventures/:id/invite', async (req, res) => {
+  try {
+    const adventureId = Number(req.params.id);
+    const { agentIds } = req.body || {};
+    
+    if (!adventureId || isNaN(adventureId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant aventure invalide.' 
+      });
+    }
+    
+    if (!agentIds || !Array.isArray(agentIds) || agentIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Aucun agent spécifié pour l\'invitation.' 
+      });
+    }
+    
+    // Vérifier que l'aventure existe
+    const adventure = await db.getAdventureById(adventureId);
+    if (!adventure) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Aventure introuvable.' 
+      });
+    }
+    
+    // Créer les invitations
+    const createdInvitations = [];
+    for (const agentId of agentIds) {
+      const agent = await db.getAgentById(agentId);
+      if (agent) {
+        // Vérifier que l'agent n'a pas déjà une aventure active
+        const hasAdventure = await db.hasActiveAdventure(agentId);
+        if (!hasAdventure) {
+          const invitationId = await db.createInvitation(adventureId, agentId);
+          createdInvitations.push(invitationId);
+        }
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `${createdInvitations.length} invitation(s) créée(s).`,
+      invitationIds: createdInvitations 
+    });
+  } catch (error) {
+    console.error('Erreur lors de la création des invitations:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// GET /api/admin/adventures/:id/invitations - Liste des invitations pour une aventure
+app.get('/api/admin/adventures/:id/invitations', async (req, res) => {
+  try {
+    const adventureId = Number(req.params.id);
+    
+    if (!adventureId || isNaN(adventureId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant aventure invalide.' 
+      });
+    }
+    
+    const invitations = await db.getInvitationsByAdventure(adventureId);
+    res.json({ success: true, invitations });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des invitations:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// ============ AGENT INVITATION ROUTES ============
+
+// GET /api/agent/invitations - Récupérer les invitations en attente pour l'agent connecté
+app.get('/api/agent/invitations', async (req, res) => {
+  try {
+    // TODO: Récupérer l'agent depuis la session
+    // Pour l'instant, on simulate avec un agentId passé en paramètre ou en header
+    const agentId = Number(req.headers['x-agent-id']) || Number(req.query.agentId);
+    
+    if (!agentId || isNaN(agentId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant agent invalide.' 
+      });
+    }
+    
+    const invitation = await db.getPendingInvitationByAgentId(agentId);
+    
+    if (!invitation) {
+      return res.json({ success: true, invitation: null, message: 'Aucune invitation en attente.' });
+    }
+    
+    res.json({ success: true, invitation });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des invitations:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// POST /api/agent/invitations/:id/accept - Accepter une invitation
+app.post('/api/agent/invitations/:id/accept', async (req, res) => {
+  try {
+    const invitationId = Number(req.params.id);
+    
+    if (!invitationId || isNaN(invitationId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant invitation invalide.' 
+      });
+    }
+    
+    // TODO: Vérifier que l'agent connecté est bien le propriétaire de l'invitation
+    const invitation = await db.getInvitationById(invitationId);
+    if (!invitation) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Invitation introuvable.' 
+      });
+    }
+    
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cette invitation a déjà été traitée.' 
+      });
+    }
+    
+    await db.acceptInvitation(invitationId);
+    res.json({ success: true, message: 'Invitation acceptée avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors de l\'acceptation de l\'invitation:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur interne du serveur.' 
+    });
+  }
+});
+
+// POST /api/agent/invitations/:id/reject - Refuser une invitation
+app.post('/api/agent/invitations/:id/reject', async (req, res) => {
+  try {
+    const invitationId = Number(req.params.id);
+    
+    if (!invitationId || isNaN(invitationId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Identifiant invitation invalide.' 
+      });
+    }
+    
+    const invitation = await db.getInvitationById(invitationId);
+    if (!invitation) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Invitation introuvable.' 
+      });
+    }
+    
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cette invitation a déjà été traitée.' 
+      });
+    }
+    
+    await db.rejectInvitation(invitationId);
+    res.json({ success: true, message: 'Invitation refusée avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors du refus de l\'invitation:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Erreur interne du serveur.' 

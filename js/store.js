@@ -175,7 +175,6 @@ class AppStore {
     wizard: {
       currentStep: 1,
       visitedStep: 1,
-      talents: [],
       talentIndex: 0,
       selectedTalent: null,
       talentIdSelected: null,
@@ -219,6 +218,9 @@ class AppStore {
   get expandedMessageIds() {
     return this.#state.agent.expandedMessageIds;
   }
+  get currentAdventure() {
+    return this.#state.agent.adventure;
+  }
 
   // Données de référence
   get weaponsData() {
@@ -237,11 +239,6 @@ class AppStore {
     return this.#state.data.talents;
   }
   
-  // Wizard talents (séparé des talents disponibles)
-  get wizardTalents() {
-    return this.#state.wizard.talents;
-  }
-
   // Compétences - Hiérarchie
   get competencesHierarchy() {
     return this.#state.competences.hierarchy;
@@ -377,6 +374,11 @@ class AppStore {
     this.notify();
   }
 
+  setCurrentAdventure(adventure) {
+    this.#state.agent.adventure = adventure ? { ...adventure } : null;
+    this.notify();
+  }
+
   // Données de référence
   setWeaponsData(data) {
     this.#state.data.weapons = Array.isArray(data) ? [...data] : [];
@@ -403,12 +405,6 @@ class AppStore {
     this.notify();
   }
   
-  // Wizard talents
-  setWizardTalents(data) {
-    this.#state.wizard.talents = Array.isArray(data) ? [...data] : [];
-    this.notify();
-  }
-
   // Compétences - Hiérarchie
   setCompetencesHierarchy(data) {
     this.#state.competences.hierarchy = Array.isArray(data) ? [...data] : [];
@@ -719,6 +715,7 @@ class AppStore {
         current: {},
         messages: [],
         expandedMessageIds: new Set(),
+        adventure: null,
       },
       data: {
         weapons: [],
@@ -776,7 +773,6 @@ class AppStore {
       wizard: {
         currentStep: 1,
         visitedStep: 1,
-        talents: [],
         talentIndex: 0,
         selectedTalent: null,
         talentIdSelected: null,
@@ -843,58 +839,3 @@ class AppStore {
 // EXPORT - Singleton
 // ============================================================================
 export const store = new AppStore();
-
-// Export des getters pour compatibilité directe
-export {
-  // Agent
-  currentAgent,
-  currentAgentMessages,
-  expandedMessageIds,
-  // Données
-  weaponsData,
-  medicalData,
-  equipmentData,
-  effectsData,
-  talents,
-  wizardTalents,
-  // Compétences
-  competencesHierarchy,
-  competencesState,
-  baseStats,
-  baseAttributes,
-  skillsState,
-  attributesState,
-  // Modifications
-  attributesViewModifications,
-  attributesViewInitialValues,
-  // Redistribution
-  currentAttributeGroup,
-  currentAttributeGroupValue,
-  attributeModifications,
-  attributeBaseValues,
-  currentAvailablePoints,
-  // Groupes de compétences
-  skillGroupModifications,
-  skillGroupBaseValues,
-  currentSkillGroupAvailablePoints,
-  // Compétences niveau 4
-  skillModifications,
-  skillBaseValues,
-  currentSkillAvailablePoints,
-  // Inventaire
-  pendingDeleteIndex,
-  // Wizard
-  currentStep,
-  visitedStep,
-  talentIndex,
-  selectedTalent,
-  talentIdSelected,
-  attributeValues,
-  reserveValues,
-  // Talents agent
-  selectedAgentTalent,
-  selectedAgentTalentId,
-  selectedAgentTalentTile,
-  // UI
-  storyCount,
-} from { store };

@@ -220,13 +220,13 @@
     function renderAvailableAgents() {
       const container = document.getElementById('availableAgentsContainer');
       container.innerHTML = availableAgents.map(agent => `
-        <div class="available-agent">
+        <label class="available-agent">
           <div class="info">
             <div class="name">${escapeHtml(agent.name)} ${escapeHtml(agent.firstName)}</div>
             <div class="profession">${escapeHtml(agent.profession || 'Aucune profession')}</div>
           </div>
           <input type="checkbox" data-agent-id="${agent.id}" ${selectedAgents.has(agent.id) ? 'checked' : ''} />
-        </div>
+        </label>
       `).join('');
       
       // Ajouter les écouteurs sur les checkboxes

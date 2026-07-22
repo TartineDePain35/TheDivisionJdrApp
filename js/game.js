@@ -114,7 +114,6 @@ import {
   loadMedicalData,
   loadEquipmentData,
   loadMessagesForCurrentAgent,
-  loadTalents as loadTalentsData,
   requestJson,
 } from './data.js';
 
@@ -136,7 +135,7 @@ import {
  * Réinitialise le wizard
  */
 export function resetWizard() {
-  resetWizardState();
+  store.resetWizardState();
   
   Object.values(agentInputs).forEach((input) => {
     if (input) input.value = '';
@@ -324,37 +323,17 @@ function showWizardStep(step) {
   scrollToTop();
 }
 
-/**
- * Charge les talents pour le wizard
- * @returns {Promise<void>}
- */
-export async function loadTalents() {
-  try {
-    const result = await requestJson('/api/talents');
-    // Utiliser le setter pour wizardTalents au lieu de muter talents directement
-    const loadedTalents = Array.isArray(result) ? result : (result?.talents || result?.data || []);
-    store.setWizardTalents(loadedTalents);
-    
-    // Utiliser les setters du Store pour le wizard
-    store.setTalentIndex(0);
-    store.setSelectedTalent(null);
-    store.setTalentIdSelected(null);
-  } catch {
-    store.setWizardTalents([]);
-  }
-  renderTalent();
-}
 
 /**
  * Rendu du talent courant dans le wizard
  */
 function renderTalent() {
   // Utiliser les getters du Store
-  const wizardTalents = store.wizardTalents;
+  const talents = store.talents;
   const index = store.talentIndex;
   const selected = store.selectedTalent;
   
-  console.log('renderTalent() appelé - talentIndex:', index, 'talents.length:', wizardTalents.length, 'selectedTalent:', selected);
+  console.log('renderTalent() appelé - talentIndex:', index, 'talents.length:', talents.length, 'selectedTalent:', selected);
   
   // Obtenir les éléments directement pour éviter les problèmes de timing des modules
   const talentTitle = document.getElementById('talentTitle');
@@ -364,7 +343,7 @@ function renderTalent() {
     console.log('Erreur: talentTitle ou talentDescription non trouvé dans le DOM');
     return;
   }
-  const talent = wizardTalents[index] || selected;
+  const talent = talents[index] || selected;
   console.log('Talent à afficher:', talent);
   if (!talent) {
     talentTitle.textContent = 'Chargement des talents...';
@@ -380,8 +359,8 @@ function renderTalent() {
  * @param {number} direction - Direction (1 ou -1)
  */
 export function navigateTalent(direction) {
-  if (!store.wizardTalents.length) return;
-  store.setTalentIndex((store.talentIndex + direction + store.wizardTalents.length) % store.wizardTalents.length);
+  if (!store.talents.length) return;
+  store.setTalentIndex((store.talentIndex + direction + store.talents.length) % store.talents.length);
   renderTalent();
 }
 
@@ -389,8 +368,8 @@ export function navigateTalent(direction) {
  * Sélectionne un talent
  */
 export function chooseTalent() {
-  if (!store.wizardTalents.length) return;
-  const talent = store.wizardTalents[store.talentIndex];
+  if (!store.talents.length) return;
+  const talent = store.talents[store.talentIndex];
   if (!talent || talent.id === null || talent.id === undefined) return;
   store.setSelectedTalent(talent);
   store.setTalentIdSelected(String(talent.id));
@@ -1119,8 +1098,9 @@ export function selectAvailableTalent(talent, tile) {
     tile.classList.add('selected');
   }
 
-  if (confirmTalentBtn) {
-    confirmTalentBtn.disabled = !store.selectedAgentTalentId;
+  const confirmTalentBtnEl = document.getElementById('confirmTalentBtn');
+  if (confirmTalentBtnEl) {
+    confirmTalentBtnEl.disabled = !store.selectedAgentTalentId;
   }
 }
 
@@ -1170,19 +1150,23 @@ export async function confirmTalentSelection() {
  * @returns {Promise<void>}
  */
 export async function renderTalentsScreen() {
-  if (!talentsContainer || !talentsAvailableContainer || !currentAgent) return;
+  const talentsContainerEl = document.getElementById('talentsContainer');
+  const talentsAvailableContainerEl = document.getElementById('talentsAvailableContainer');
+  const confirmTalentBtnEl = document.getElementById('confirmTalentBtn');
+  
+  if (!talentsContainerEl || !talentsAvailableContainerEl || !store.currentAgent) return;
 
   // Réinitialiser la sélection
-  resetSelectedAgentTalent();
+  store.resetSelectedAgentTalent();
   
-  if (confirmTalentBtn) {
-    confirmTalentBtn.disabled = true;
-    confirmTalentBtn.title = 'Sélectionnez un talent disponible pour activer.';
+  if (confirmTalentBtnEl) {
+    confirmTalentBtnEl.disabled = true;
+    confirmTalentBtnEl.title = 'Sélectionnez un talent disponible pour activer.';
   }
 
   try {
     const [activeResponse, allResponse] = await Promise.all([
-      fetch(`/api/agents/${currentAgent.id}/talents`),
+      fetch(`/api/agents/${store.currentAgent.id}/talents`),
       fetch('/api/talents'),
     ]);
 
@@ -1203,23 +1187,23 @@ export async function renderTalentsScreen() {
 
     const activeIds = new Set((activeTalents || []).map((talent) => talent.id));
     const availableTalents = allTalents.filter((talent) => !activeIds.has(talent.id));
-    const hasTalentPoints = Number(currentAgent.availableTalentPoints ?? 0) > 0;
+    const hasTalentPoints = Number(store.currentAgent.availableTalentPoints ?? 0) > 0;
 
-    talentsContainer.innerHTML = '';
-    talentsAvailableContainer.innerHTML = '';
-    talentsAvailableContainer.classList.toggle('talents-available-disabled', !hasTalentPoints);
+    talentsContainerEl.innerHTML = '';
+    talentsAvailableContainerEl.innerHTML = '';
+    talentsAvailableContainerEl.classList.toggle('talents-available-disabled', !hasTalentPoints);
 
     if (!activeTalents || !activeTalents.length) {
-      talentsContainer.innerHTML = '<div class="talents-empty">Aucun talent actif.</div>';
+      talentsContainerEl.innerHTML = '<div class="talents-empty">Aucun talent actif.</div>';
     } else {
       activeTalents.forEach((talent) => {
         const tile = createTalentTile(talent, false, false);
-        talentsContainer.appendChild(tile);
+        talentsContainerEl.appendChild(tile);
       });
     }
 
     if (!availableTalents.length) {
-      talentsAvailableContainer.innerHTML = '<div class="talents-empty">Aucun talent disponible.</div>';
+      talentsAvailableContainerEl.innerHTML = '<div class="talents-empty">Aucun talent disponible.</div>';
     } else {
       availableTalents.forEach((talent) => {
         const tile = createTalentTile(talent, true, !hasTalentPoints);
@@ -1229,13 +1213,13 @@ export async function renderTalentsScreen() {
           tile.style.cursor = 'pointer';
           tile.addEventListener('click', () => selectAvailableTalent(talent, tile));
         }
-        talentsAvailableContainer.appendChild(tile);
+        talentsAvailableContainerEl.appendChild(tile);
       });
     }
   } catch (error) {
     console.error('Erreur lors du chargement des talents:', error);
-    talentsContainer.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
-    talentsAvailableContainer.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
+    talentsContainerEl.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
+    talentsAvailableContainerEl.innerHTML = '<div class="talents-empty">Erreur de chargement des talents.</div>';
   }
 }
 
@@ -1260,16 +1244,17 @@ export async function handleMessageToggle(event) {
   const messageId = Number(button.dataset.messageId);
   if (!messageId) return;
 
-  if (expandedMessageIds.has(messageId)) {
-    expandedMessageIds.delete(messageId);
+  if (store.expandedMessageIds.has(messageId)) {
+    store.expandedMessageIds.delete(messageId);
   } else {
-    expandedMessageIds.add(messageId);
+    store.expandedMessageIds.add(messageId);
     // Marquer le message comme lu
-    const message = currentAgentMessages.find(m => m.id == messageId);
+    const message = store.currentAgentMessages.find(m => m.id == messageId);
     if (message && message.is_read !== true) {
       try {
         await requestJson(`/api/messages/${messageId}/read`, { method: 'PATCH' });
         message.is_read = true;
+        updateMessagesButtonLabel();
       } catch (error) {
         console.error('Erreur lors du marquage du message comme lu:', error);
       }
@@ -1277,9 +1262,9 @@ export async function handleMessageToggle(event) {
   }
 
   // Re-rendre les messages
-  const messages = currentAgentMessages.map(m => ({
+  const messages = store.currentAgentMessages.map(m => ({
     ...m,
-    expanded: expandedMessageIds.has(m.id)
+    expanded: store.expandedMessageIds.has(m.id)
   }));
   renderMessages(messages);
 }
@@ -1293,29 +1278,38 @@ export async function handleMessageToggle(event) {
  */
 export function initEventListeners() {
   // Boutons de navigation principale
-  if (inventoryBtn) inventoryBtn.addEventListener('click', () => {
+  const inventoryBtnEl = document.getElementById('inventoryBtn');
+  const skillsBtnEl = document.getElementById('skillsBtn');
+  const attributesBtnEl = document.getElementById('attributesBtn');
+  const competencesBtnEl = document.getElementById('competencesBtn');
+  const talentsBtnEl = document.getElementById('talentsBtn');
+  const messagesBtnEl = document.getElementById('messagesBtn');
+  
+  if (inventoryBtnEl) inventoryBtnEl.addEventListener('click', () => {
     openInventoryScreen();
-    renderInventory(currentAgent);
+    renderInventory(store.currentAgent);
   });
   
-  if (skillsBtn) skillsBtn.addEventListener('click', () => {
+  if (skillsBtnEl) skillsBtnEl.addEventListener('click', () => {
     initializeSkillsState();
     openSkillsScreen();
     updateSkillsScreen();
   });
   
-  if (attributesBtn) attributesBtn.addEventListener('click', () => {
+  if (attributesBtnEl) attributesBtnEl.addEventListener('click', () => {
     initializeAttributesState();
     openAttributesScreen();
     updateAttributesScreen();
   });
   
-  if (competencesBtn) competencesBtn.addEventListener('click', openCompetencesScreen);
-  if (talentsBtn) talentsBtn.addEventListener('click', async () => {
+  if (competencesBtnEl) competencesBtnEl.addEventListener('click', openCompetencesScreen);
+  if (talentsBtnEl) talentsBtnEl.addEventListener('click', async () => {
     openTalentsScreen();
     await renderTalentsScreen();
   });
-  if (messagesBtn) messagesBtn.addEventListener('click', openMessagesScreen);
+  if (messagesBtnEl) messagesBtnEl.addEventListener('click', async () => {
+    await openMessagesScreen();
+  });
   
   // Inventaire
   if (addInventoryItemBtn) addInventoryItemBtn.addEventListener('click', openAddItemModal);
@@ -1448,17 +1442,17 @@ export function initEventListeners() {
   // Wizard
   if (wizardBack) {
     wizardBack.addEventListener('click', () => {
-      if (currentStep === 1) {
+      if (store.currentStep === 1) {
         showSection('landing');
         return;
       }
-      showWizardStep(currentStep - 1);
+      showWizardStep(store.currentStep - 1);
     });
   }
   
   if (wizardNext) {
     wizardNext.addEventListener('click', async () => {
-      if (currentStep === 7) {
+      if (store.currentStep === 7) {
         const data = getWizardData();
         if (!validateStep(7)) {
           showToast('Vérifiez que le mot de passe est renseigné.');
@@ -1482,11 +1476,11 @@ export function initEventListeners() {
         }
         return;
       }
-      if (!validateStep(currentStep)) {
+      if (!validateStep(store.currentStep)) {
         showToast('Complétez cette étape avant de continuer.');
         return;
       }
-      showWizardStep(currentStep + 1);
+      showWizardStep(store.currentStep + 1);
     });
   }
   
@@ -1544,16 +1538,16 @@ export function initEventListeners() {
  * Initialise l'état des stats
  */
 export function initializeSkillsState() {
-  const agentStats = currentAgent?.stats || { speed: 1, resilience: 1, vigor: 1 };
+  const agentStats = store.currentAgent?.stats || { speed: 1, resilience: 1, vigor: 1 };
   
-  Object.assign(baseStats, {
+  Object.assign(store.baseStats, {
     speed: Number(agentStats.speed ?? 1),
     resilience: Number(agentStats.resilience ?? 1),
     vigor: Number(agentStats.vigor ?? 1),
   });
   
-  Object.assign(skillsState, {
-    reserve: Number(currentAgent?.availableStatsPoints ?? 0),
+  Object.assign(store.skillsState, {
+    reserve: Number(store.currentAgent?.availableStatsPoints ?? 0),
     stats: {
       speed: Number(agentStats.speed ?? 1),
       resilience: Number(agentStats.resilience ?? 1),
@@ -1566,16 +1560,16 @@ export function initializeSkillsState() {
  * Initialise l'état des attributs
  */
 export function initializeAttributesState() {
-  const agentAttributes = currentAgent?.attributes || { conscience: 1, dexterity: 1, technique: 1 };
+  const agentAttributes = store.currentAgent?.attributes || { conscience: 1, dexterity: 1, technique: 1 };
   
-  Object.assign(baseAttributes, {
+  Object.assign(store.baseAttributes, {
     conscience: Number(agentAttributes.conscience ?? 1),
     dexterity: Number(agentAttributes.dexterity ?? 1),
     technique: Number(agentAttributes.technique ?? 1),
   });
   
-  Object.assign(attributesState, {
-    reserve: Number(currentAgent?.availableAttributesPoints ?? 0),
+  Object.assign(store.attributesState, {
+    reserve: Number(store.currentAgent?.availableAttributesPoints ?? 0),
     attributes: {
       conscience: Number(agentAttributes.conscience ?? 1),
       dexterity: Number(agentAttributes.dexterity ?? 1),
@@ -1584,14 +1578,14 @@ export function initializeAttributesState() {
   });
   
   // Stocker les valeurs initiales
-  Object.assign(attributesViewInitialValues, {
-    conscience: attributesState.attributes.conscience,
-    dexterity: attributesState.attributes.dexterity,
-    technique: attributesState.attributes.technique,
+  Object.assign(store.attributesViewInitialValues, {
+    conscience: store.attributesState.attributes.conscience,
+    dexterity: store.attributesState.attributes.dexterity,
+    technique: store.attributesState.attributes.technique,
   });
   
   // Réinitialiser les modifications
-  Object.keys(attributesViewModifications).forEach(key => delete attributesViewModifications[key]);
+  Object.keys(store.attributesViewModifications).forEach(key => delete store.attributesViewModifications[key]);
 }
 
 /**
@@ -1599,11 +1593,11 @@ export function initializeAttributesState() {
  */
 export function updateSkillsScreen() {
   renderSkillsScreen({
-    reserve: skillsState.reserve,
-    stats: skillsState.stats,
-    baseStats
+    reserve: store.skillsState.reserve,
+    stats: store.skillsState.stats,
+    baseStats: store.baseStats
   });
-  updateSkillsButtons({ reserve: skillsState.reserve, stats: skillsState.stats, baseStats });
+  updateSkillsButtons({ reserve: store.skillsState.reserve, stats: store.skillsState.stats, baseStats: store.baseStats });
 }
 
 /**
@@ -1611,15 +1605,15 @@ export function updateSkillsScreen() {
  */
 export function updateAttributesScreen() {
   renderAttributesScreen({
-    reserve: attributesState.reserve,
-    attributes: attributesState.attributes,
-    baseAttributes
+    reserve: store.attributesState.reserve,
+    attributes: store.attributesState.attributes,
+    baseAttributes: store.baseAttributes
   });
   
-  updateAttributesButtons({ reserve: attributesState.reserve, attributes: attributesState.attributes, baseAttributes });
+  updateAttributesButtons({ reserve: store.attributesState.reserve, attributes: store.attributesState.attributes, baseAttributes: store.baseAttributes });
   
   // Vérifier si des modifications existent
-  const hasModifications = Object.keys(attributesViewModifications).length > 0;
+  const hasModifications = Object.keys(store.attributesViewModifications).length > 0;
   updateSaveAttributesButtonState(hasModifications);
 }
 
@@ -1629,24 +1623,24 @@ export function updateAttributesScreen() {
  * @param {string} action - Action (increase/decrease)
  */
 export function changeSkillStat(stat, action) {
-  if (typeof skillsState.reserve !== 'number' || isNaN(skillsState.reserve)) {
-    skillsState.reserve = Number(skillsState.reserve) || 0;
+  if (typeof store.skillsState.reserve !== 'number' || isNaN(store.skillsState.reserve)) {
+    store.skillsState.reserve = Number(store.skillsState.reserve) || 0;
   }
   
   if (action === 'increase') {
-    if (skillsState.reserve <= 0) return;
-    skillsState.stats[stat] = (skillsState.stats[stat] || 0) + 1;
-    skillsState.reserve -= 1;
+    if (store.skillsState.reserve <= 0) return;
+    store.skillsState.stats[stat] = (store.skillsState.stats[stat] || 0) + 1;
+    store.skillsState.reserve -= 1;
   } else if (action === 'decrease') {
-    if (skillsState.stats[stat] <= (baseStats[stat] || 1)) return;
-    skillsState.stats[stat] = Math.max(baseStats[stat] || 1, skillsState.stats[stat] - 1);
-    skillsState.reserve += 1;
+    if (store.skillsState.stats[stat] <= (store.baseStats[stat] || 1)) return;
+    store.skillsState.stats[stat] = Math.max(store.baseStats[stat] || 1, store.skillsState.stats[stat] - 1);
+    store.skillsState.reserve += 1;
   }
   
   // Mettre à jour currentAgent
-  if (currentAgent) {
-    currentAgent.stats = { ...currentAgent.stats, ...skillsState.stats };
-    currentAgent.availableStatsPoints = skillsState.reserve;
+  if (store.currentAgent) {
+    store.currentAgent.stats = { ...store.currentAgent.stats, ...store.skillsState.stats };
+    store.currentAgent.availableStatsPoints = store.skillsState.reserve;
   }
   
   updateSkillsScreen();
@@ -1658,36 +1652,36 @@ export function changeSkillStat(stat, action) {
  * @param {string} action - Action (increase/decrease)
  */
 export function changeAttributeStat(attr, action) {
-  if (typeof attributesState.reserve !== 'number' || isNaN(attributesState.reserve)) {
-    attributesState.reserve = Number(attributesState.reserve) || 0;
+  if (typeof store.attributesState.reserve !== 'number' || isNaN(store.attributesState.reserve)) {
+    store.attributesState.reserve = Number(store.attributesState.reserve) || 0;
   }
   
-  const oldValue = attributesState.attributes[attr];
+  const oldValue = store.attributesState.attributes[attr];
   
   if (action === 'increase') {
-    if (attributesState.reserve <= 0) return;
-    attributesState.attributes[attr] = (attributesState.attributes[attr] || 0) + 1;
-    attributesState.reserve -= 1;
+    if (store.attributesState.reserve <= 0) return;
+    store.attributesState.attributes[attr] = (store.attributesState.attributes[attr] || 0) + 1;
+    store.attributesState.reserve -= 1;
   } else if (action === 'decrease') {
-    if (attributesState.attributes[attr] <= (baseAttributes[attr] || 1)) return;
-    attributesState.attributes[attr] = Math.max(baseAttributes[attr] || 1, attributesState.attributes[attr] - 1);
-    attributesState.reserve += 1;
+    if (store.attributesState.attributes[attr] <= (store.baseAttributes[attr] || 1)) return;
+    store.attributesState.attributes[attr] = Math.max(store.baseAttributes[attr] || 1, store.attributesState.attributes[attr] - 1);
+    store.attributesState.reserve += 1;
   }
   
   // Mettre à jour currentAgent
-  if (currentAgent) {
-    currentAgent.attributes = { ...currentAgent.attributes, ...attributesState.attributes };
-    currentAgent.availableAttributesPoints = attributesState.reserve;
+  if (store.currentAgent) {
+    store.currentAgent.attributes = { ...store.currentAgent.attributes, ...store.attributesState.attributes };
+    store.currentAgent.availableAttributesPoints = store.attributesState.reserve;
   }
   
   // Marquer la modification
-  const newValue = attributesState.attributes[attr];
-  const initialValue = attributesViewInitialValues[attr];
+  const newValue = store.attributesState.attributes[attr];
+  const initialValue = store.attributesViewInitialValues[attr];
   
   if (newValue !== initialValue) {
-    attributesViewModifications[attr] = newValue;
+    store.attributesViewModifications[attr] = newValue;
   } else {
-    delete attributesViewModifications[attr];
+    delete store.attributesViewModifications[attr];
   }
   
   updateAttributesScreen();
@@ -1698,14 +1692,14 @@ export function changeAttributeStat(attr, action) {
  * @returns {Promise<void>}
  */
 async function saveSkillsAllocation() {
-  if (!currentAgent) return;
-  currentAgent.stats = { ...currentAgent.stats, ...skillsState.stats };
-  currentAgent.availableStatsPoints = skillsState.reserve;
+  if (!store.currentAgent) return;
+  store.currentAgent.stats = { ...store.currentAgent.stats, ...store.skillsState.stats };
+  store.currentAgent.availableStatsPoints = store.skillsState.reserve;
   await persistCurrentAgent();
   showToast('Compétences mises à jour.');
   
   const { renderAgent } = await import('./ui.js');
-  await renderAgent(currentAgent);
+  await renderAgent(store.currentAgent);
   openDashboardView();
 }
 
@@ -1714,17 +1708,17 @@ async function saveSkillsAllocation() {
  * @returns {Promise<void>}
  */
 async function saveAttributesAllocation() {
-  if (!currentAgent) return;
-  currentAgent.attributes = { ...currentAgent.attributes, ...attributesState.attributes };
-  currentAgent.availableAttributesPoints = attributesState.reserve;
+  if (!store.currentAgent) return;
+  store.currentAgent.attributes = { ...store.currentAgent.attributes, ...store.attributesState.attributes };
+  store.currentAgent.availableAttributesPoints = store.attributesState.reserve;
   await persistCurrentAgent();
   showToast('Attributs mis à jour.');
   
   // Réinitialiser les modifications
-  Object.keys(attributesViewModifications).forEach(key => delete attributesViewModifications[key]);
-  Object.keys(attributesViewInitialValues).forEach(key => delete attributesViewInitialValues[key]);
+  Object.keys(store.attributesViewModifications).forEach(key => delete store.attributesViewModifications[key]);
+  Object.keys(store.attributesViewInitialValues).forEach(key => delete store.attributesViewInitialValues[key]);
   
   const { renderAgent } = await import('./ui.js');
-  await renderAgent(currentAgent);
+  await renderAgent(store.currentAgent);
   openDashboardView();
 }

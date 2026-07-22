@@ -60,24 +60,37 @@ export {
 // Abonnement aux changements de l'agent courant
 let agentUnsubscribe = null;
 let messagesUnsubscribe = null;
+let adventureUnsubscribe = null;
 
 /**
  * Initialise les abonnements au Store pour la réactivité UI
  */
 function initStoreSubscriptions() {
   // Déjà abonné ? Ne rien faire
-  if (agentUnsubscribe || messagesUnsubscribe) return;
+  if (agentUnsubscribe || messagesUnsubscribe || adventureUnsubscribe) return;
 
   // Abonnement à l'agent courant
-  agentUnsubscribe = store.subscribe((agent) => {
-    if (agent && Object.keys(agent).length > 0) {
-      renderAgent(agent);
+  agentUnsubscribe = store.subscribe((agentData) => {
+    if (agentData && agentData.current && Object.keys(agentData.current).length > 0) {
+      renderAgent(agentData.current);
     }
   }, 'agent');
 
   // Abonnement aux messages
-  messagesUnsubscribe = store.subscribe((messages) => {
-    renderMessages(messages);
+  messagesUnsubscribe = store.subscribe((agentData) => {
+    if (agentData && agentData.messages) {
+      renderMessages(agentData.messages);
+      updateMessagesButtonLabel();
+    }
+  }, 'agent');
+
+  // Abonnement à l'aventure active
+  adventureUnsubscribe = store.subscribe((agentData) => {
+    if (agentData && agentData.adventure) {
+      updateAdventureDisplay(agentData.adventure);
+    } else {
+      updateAdventureDisplay(null);
+    }
   }, 'agent');
 }
 
@@ -92,6 +105,10 @@ function cleanupStoreSubscriptions() {
   if (messagesUnsubscribe) {
     messagesUnsubscribe();
     messagesUnsubscribe = null;
+  }
+  if (adventureUnsubscribe) {
+    adventureUnsubscribe();
+    adventureUnsubscribe = null;
   }
 }
 
@@ -212,7 +229,7 @@ export async function renderAgent(agent) {
     inventoryCapacityLabel.textContent = String(agent.inventoryCapacity ?? 30);
   }
   
-  openDashboardView();
+  // openDashboardView() removed - was forcing dashboard view and overwriting other screens
 }
 
 /**
@@ -230,14 +247,6 @@ async function renderAgentEffects(agent) {
     ...(agent.effects || []),
     ...(agent.wounds || [])
   ].filter(Boolean);
-  
-  // Debug: afficher la structure des effets bruts
-  if (rawEffects.length > 0) {
-    console.log('Effets bruts de l\'agent (direct):', rawEffects);
-    console.log('Premier effet:', rawEffects[0]);
-    console.log('Premier effet - has name?', 'name' in rawEffects[0], rawEffects[0]?.name);
-    console.log('Premier effet - has type?', 'type' in rawEffects[0], rawEffects[0]?.type);
-  }
 
   if (rawEffects.length) {
     // Normalisation simple : s'assurer que chaque effet a toutes les propriétés nécessaires
@@ -349,13 +358,21 @@ export function openEffectDetails(effect) {
  * Ouvre le tableau de bord
  */
 export function openDashboardView() {
-  if (dashboardView) dashboardView.classList.remove('hidden');
-  if (inventoryView) inventoryView.classList.add('hidden');
-  if (skillsView) skillsView?.classList.add('hidden');
-  if (attributesView) attributesView?.classList.add('hidden');
-  if (competencesView) competencesView?.classList.add('hidden');
-  if (talentsView) talentsView?.classList.add('hidden');
-  if (messagesView) messagesView?.classList.add('hidden');
+  const dashboardViewEl = document.getElementById('dashboardView');
+  const inventoryViewEl = document.getElementById('inventoryView');
+  const skillsViewEl = document.getElementById('skillsView');
+  const attributesViewEl = document.getElementById('attributesView');
+  const competencesViewEl = document.getElementById('competencesView');
+  const talentsViewEl = document.getElementById('talentsView');
+  const messagesViewEl = document.getElementById('messagesView');
+  
+  if (dashboardViewEl) dashboardViewEl.classList.remove('hidden');
+  if (inventoryViewEl) inventoryViewEl.classList.add('hidden');
+  if (skillsViewEl) skillsViewEl.classList.add('hidden');
+  if (attributesViewEl) attributesViewEl.classList.add('hidden');
+  if (competencesViewEl) competencesViewEl.classList.add('hidden');
+  if (talentsViewEl) talentsViewEl.classList.add('hidden');
+  if (messagesViewEl) messagesViewEl.classList.add('hidden');
   
   if (heroMission) heroMission.textContent = 'Tableau de bord de l’Aventure';
   
@@ -371,13 +388,21 @@ export function openDashboardView() {
  * Ouvre l'écran d'inventaire
  */
 export function openInventoryScreen() {
-  if (dashboardView) dashboardView.classList.add('hidden');
-  if (inventoryView) inventoryView.classList.remove('hidden');
-  if (skillsView) skillsView?.classList.add('hidden');
-  if (attributesView) attributesView?.classList.add('hidden');
-  if (competencesView) competencesView?.classList.add('hidden');
-  if (talentsView) talentsView?.classList.add('hidden');
-  if (messagesView) messagesView?.classList.add('hidden');
+  const dashboardViewEl = document.getElementById('dashboardView');
+  const inventoryViewEl = document.getElementById('inventoryView');
+  const skillsViewEl = document.getElementById('skillsView');
+  const attributesViewEl = document.getElementById('attributesView');
+  const competencesViewEl = document.getElementById('competencesView');
+  const talentsViewEl = document.getElementById('talentsView');
+  const messagesViewEl = document.getElementById('messagesView');
+  
+  if (dashboardViewEl) dashboardViewEl.classList.add('hidden');
+  if (inventoryViewEl) inventoryViewEl.classList.remove('hidden');
+  if (skillsViewEl) skillsViewEl.classList.add('hidden');
+  if (attributesViewEl) attributesViewEl.classList.add('hidden');
+  if (competencesViewEl) competencesViewEl.classList.add('hidden');
+  if (talentsViewEl) talentsViewEl.classList.add('hidden');
+  if (messagesViewEl) messagesViewEl.classList.add('hidden');
   
   if (heroMission) heroMission.textContent = 'Inventaire';
   
@@ -391,13 +416,21 @@ export function openInventoryScreen() {
  * Ouvre l'écran des stats (compétences principales)
  */
 export function openSkillsScreen() {
-  if (dashboardView) dashboardView.classList.add('hidden');
-  if (inventoryView) inventoryView.classList.add('hidden');
-  if (skillsView) skillsView?.classList.remove('hidden');
-  if (attributesView) attributesView?.classList.add('hidden');
-  if (competencesView) competencesView?.classList.add('hidden');
-  if (talentsView) talentsView?.classList.add('hidden');
-  if (messagesView) messagesView?.classList.add('hidden');
+  const dashboardViewEl = document.getElementById('dashboardView');
+  const inventoryViewEl = document.getElementById('inventoryView');
+  const skillsViewEl = document.getElementById('skillsView');
+  const attributesViewEl = document.getElementById('attributesView');
+  const competencesViewEl = document.getElementById('competencesView');
+  const talentsViewEl = document.getElementById('talentsView');
+  const messagesViewEl = document.getElementById('messagesView');
+  
+  if (dashboardViewEl) dashboardViewEl.classList.add('hidden');
+  if (inventoryViewEl) inventoryViewEl.classList.add('hidden');
+  if (skillsViewEl) skillsViewEl.classList.remove('hidden');
+  if (attributesViewEl) attributesViewEl.classList.add('hidden');
+  if (competencesViewEl) competencesViewEl.classList.add('hidden');
+  if (talentsViewEl) talentsViewEl.classList.add('hidden');
+  if (messagesViewEl) messagesViewEl.classList.add('hidden');
   
   if (heroMission) heroMission.textContent = 'Compétences';
   
@@ -411,13 +444,21 @@ export function openSkillsScreen() {
  * Ouvre l'écran des attributs
  */
 export function openAttributesScreen() {
-  if (dashboardView) dashboardView.classList.add('hidden');
-  if (inventoryView) inventoryView.classList.add('hidden');
-  if (skillsView) skillsView?.classList.add('hidden');
-  if (attributesView) attributesView?.classList.remove('hidden');
-  if (competencesView) competencesView?.classList.add('hidden');
-  if (talentsView) talentsView?.classList.add('hidden');
-  if (messagesView) messagesView?.classList.add('hidden');
+  const dashboardViewEl = document.getElementById('dashboardView');
+  const inventoryViewEl = document.getElementById('inventoryView');
+  const skillsViewEl = document.getElementById('skillsView');
+  const attributesViewEl = document.getElementById('attributesView');
+  const competencesViewEl = document.getElementById('competencesView');
+  const talentsViewEl = document.getElementById('talentsView');
+  const messagesViewEl = document.getElementById('messagesView');
+  
+  if (dashboardViewEl) dashboardViewEl.classList.add('hidden');
+  if (inventoryViewEl) inventoryViewEl.classList.add('hidden');
+  if (skillsViewEl) skillsViewEl.classList.add('hidden');
+  if (attributesViewEl) attributesViewEl.classList.remove('hidden');
+  if (competencesViewEl) competencesViewEl.classList.add('hidden');
+  if (talentsViewEl) talentsViewEl.classList.add('hidden');
+  if (messagesViewEl) messagesViewEl.classList.add('hidden');
   
   if (heroMission) heroMission.textContent = 'Attributs';
   
@@ -436,15 +477,24 @@ export function openTalentsScreen() {
     return;
   }
   
-  if (dashboardView) dashboardView.classList.add('hidden');
-  if (inventoryView) inventoryView.classList.add('hidden');
-  if (skillsView) skillsView?.classList.add('hidden');
-  if (attributesView) attributesView?.classList.add('hidden');
-  if (competencesView) competencesView?.classList.add('hidden');
-  if (talentsView) talentsView?.classList.remove('hidden');
-  if (messagesView) messagesView?.classList.add('hidden');
+  const dashboardViewEl = document.getElementById('dashboardView');
+  const inventoryViewEl = document.getElementById('inventoryView');
+  const skillsViewEl = document.getElementById('skillsView');
+  const attributesViewEl = document.getElementById('attributesView');
+  const competencesViewEl = document.getElementById('competencesView');
+  const talentsViewEl = document.getElementById('talentsView');
+  const messagesViewEl = document.getElementById('messagesView');
   
-  if (heroMission) heroMission.textContent = 'Talents';
+  if (dashboardViewEl) dashboardViewEl.classList.add('hidden');
+  if (inventoryViewEl) inventoryViewEl.classList.add('hidden');
+  if (skillsViewEl) skillsViewEl.classList.add('hidden');
+  if (attributesViewEl) attributesViewEl.classList.add('hidden');
+  if (competencesViewEl) competencesViewEl.classList.add('hidden');
+  if (talentsViewEl) talentsViewEl.classList.remove('hidden');
+  if (messagesViewEl) messagesViewEl.classList.add('hidden');
+  
+  const heroMissionEl = document.getElementById('heroMission');
+  if (heroMissionEl) heroMissionEl.textContent = 'Talents';
   
   const logoutBtn = document.getElementById('logoutBtn');
   const homeBtn = document.getElementById('homeBtn');
@@ -462,15 +512,29 @@ export const openCompetencesScreen = openCompetencesScreenFromCompetences;
  * Ouvre l'écran des messages
  */
 export async function openMessagesScreen() {
-  if (dashboardView) dashboardView.classList.add('hidden');
-  if (inventoryView) inventoryView.classList.add('hidden');
-  if (skillsView) skillsView?.classList.add('hidden');
-  if (attributesView) attributesView?.classList.add('hidden');
-  if (competencesView) competencesView?.classList.add('hidden');
-  if (talentsView) talentsView?.classList.add('hidden');
-  if (messagesView) messagesView?.classList.remove('hidden');
+  if (!store.currentAgent) {
+    showToast('Aucun agent sélectionné.');
+    return;
+  }
   
-  if (heroMission) heroMission.textContent = 'Messages';
+  const dashboardViewEl = document.getElementById('dashboardView');
+  const inventoryViewEl = document.getElementById('inventoryView');
+  const skillsViewEl = document.getElementById('skillsView');
+  const attributesViewEl = document.getElementById('attributesView');
+  const competencesViewEl = document.getElementById('competencesView');
+  const talentsViewEl = document.getElementById('talentsView');
+  const messagesViewEl = document.getElementById('messagesView');
+  
+  if (dashboardViewEl) dashboardViewEl.classList.add('hidden');
+  if (inventoryViewEl) inventoryViewEl.classList.add('hidden');
+  if (skillsViewEl) skillsViewEl.classList.add('hidden');
+  if (attributesViewEl) attributesViewEl.classList.add('hidden');
+  if (competencesViewEl) competencesViewEl.classList.add('hidden');
+  if (talentsViewEl) talentsViewEl.classList.add('hidden');
+  if (messagesViewEl) messagesViewEl.classList.remove('hidden');
+  
+  const heroMissionEl = document.getElementById('heroMission');
+  if (heroMissionEl) heroMissionEl.textContent = 'Messages';
   
   const logoutBtn = document.getElementById('logoutBtn');
   const homeBtn = document.getElementById('homeBtn');
@@ -501,24 +565,29 @@ export async function openMessagesScreen() {
  * @param {Object} agent - Agent dont l'inventaire doit être rendu
  */
 export function renderInventory(agent) {
-  if (!agent || !inventoryList) return;
+  const inventoryListEl = document.getElementById('inventoryList');
+  const inventoryCapacityLabelEl = document.getElementById('inventoryCapacityLabel');
+  const inventoryWeightEl = document.getElementById('inventoryWeight');
+  const inventoryFillEl = document.getElementById('inventoryFill');
+  
+  if (!agent || !inventoryListEl) return;
   
   const capacity = Number(agent.inventoryCapacity ?? 30);
   const items = Array.isArray(agent.inventory) ? agent.inventory : [];
   const weight = items.reduce((total, item) => total + (Number(item.weight) || 0), 0);
   const fillPercent = capacity > 0 ? Math.round((weight / capacity) * 100) : 0;
 
-  if (inventoryCapacityLabel) {
-    inventoryCapacityLabel.textContent = String(capacity);
+  if (inventoryCapacityLabelEl) {
+    inventoryCapacityLabelEl.textContent = String(capacity);
   }
-  if (inventoryWeight) {
-    inventoryWeight.textContent = `${weight} / ${capacity}`;
+  if (inventoryWeightEl) {
+    inventoryWeightEl.textContent = `${weight} / ${capacity}`;
   }
-  if (inventoryFill) {
-    inventoryFill.textContent = `${Math.min(100, fillPercent)}%`;
+  if (inventoryFillEl) {
+    inventoryFillEl.textContent = `${Math.min(100, fillPercent)}%`;
   }
 
-  inventoryList.innerHTML = items
+  inventoryListEl.innerHTML = items
     .map(
       (item, index) =>
         `<li class="inventory-row" data-index="${index}">
@@ -540,14 +609,34 @@ export function renderInventory(agent) {
 export function updateMessagesButtonLabel() {
   // Utiliser le getter du Store pour obtenir les messages
   const messages = store.currentAgentMessages;
-  if (!messagesBtn || !messages) return;
+  const messagesBtnEl = document.getElementById('messagesBtn');
+  if (!messagesBtnEl || !messages) return;
   
   const unreadCount = messages.filter(m => m.is_read !== true).length;
   
   if (unreadCount > 0) {
-    messagesBtn.textContent = `Messages (${unreadCount})`;
+    messagesBtnEl.textContent = `Messages (${unreadCount})`;
   } else {
-    messagesBtn.textContent = 'Messages';
+    messagesBtnEl.textContent = 'Messages';
+  }
+}
+
+/**
+ * Met à jour l'affichage de l'aventure active dans le tableau de bord
+ * @param {Object|null} adventure - Aventure active ou null
+ */
+export function updateAdventureDisplay(adventure) {
+  const adventureNameEl = document.getElementById('adventureName');
+  const adventureDescriptionEl = document.getElementById('adventureDescription');
+  
+  if (!adventureNameEl || !adventureDescriptionEl) return;
+  
+  if (adventure) {
+    adventureNameEl.textContent = adventure.name || 'Aventure inconnue';
+    adventureDescriptionEl.textContent = adventure.description || 'Aucune description disponible.';
+  } else {
+    adventureNameEl.textContent = 'Aucune aventure en cours';
+    adventureDescriptionEl.textContent = '';
   }
 }
 
@@ -556,22 +645,17 @@ export function updateMessagesButtonLabel() {
  * @param {Array} messages - Messages à afficher
  */
 export function renderMessages(messages) {
-  if (!messagesList) return;
+  const messagesListEl = document.getElementById('messagesList');
+  if (!messagesListEl) return;
 
-  // Utiliser le setter du Store pour mettre à jour les messages
-  if (Array.isArray(messages)) {
-    store.setCurrentAgentMessages(messages);
-    return; // Le setter déclenchera le re-rendu via l'abonnement
-  }
-
-  // Si on reçoit un tableau vide ou non défini, forcer le rendu
-  const currentMessages = store.currentAgentMessages;
+  // Utiliser les messages passés en paramètre ou ceux du store
+  const currentMessages = messages || store.currentAgentMessages;
   if (!currentMessages || !currentMessages.length) {
-    messagesList.innerHTML = '<div class="messages-empty">Aucun message pour le moment.</div>';
+    messagesListEl.innerHTML = '<div class="messages-empty">Aucun message pour le moment.</div>';
     return;
   }
 
-  messagesList.innerHTML = currentMessages.map((message) => {
+  messagesListEl.innerHTML = currentMessages.map((message) => {
     const isExpanded = store.expandedMessageIds.has(message.id);
     const fullContent = sanitizeText(String(message.value || '')).replace(/\n/g, '<br>');
     const isUnread = !message.is_read;

@@ -35,6 +35,47 @@
         </div>
       </section>
 
+      <section id="agentWaitingScreen" class="page">
+        <div class="hero-card">
+          <div class="agent-status-icon">⏳</div>
+          <div class="hero-title">Agent en attente d'activation</div>
+          <p class="hero-text">Vous n'avez pas encore été activé pour une mission.</p>
+
+          <div id="agentWaitingContent">
+            <div id="agentInvitationView" class="invitation-container" style="display: none;">
+              <p style="color: var(--text-muted); margin-bottom: 20px;">
+                Vous avez été invité à rejoindre une aventure !
+              </p>
+              <div class="invitation-details">
+                <h3 id="agentInvitationAdventureName">Nom de l'aventure</h3>
+                <p><strong>Description :</strong></p>
+                <p id="agentInvitationAdventureDescription">Description de l'aventure...</p>
+              </div>
+              <div class="invitation-actions">
+                <button id="agentRejectInvitationBtn" class="btn btn-secondary">Refuser</button>
+                <button id="agentAcceptInvitationBtn" class="btn btn-primary">Accepter</button>
+              </div>
+            </div>
+
+            <div id="agentDormantView" class="dormant-container">
+              <p style="color: var(--text-muted); font-size: 1rem; line-height: 1.6; margin-bottom: 20px;">
+                <strong>Vous êtes actuellement dormant.</strong>
+              </p>
+              <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6;">
+                Vous n'avez pas encore reçu d'invitation pour une aventure.
+              </p>
+              <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-top: 16px;">
+                Un administrateur doit vous inviter pour activer votre compte. Patientez ou contactez votre responsable.
+              </p>
+            </div>
+          </div>
+
+          <button id="agentWaitingBackBtn" class="btn btn-tertiary" style="margin-top: 24px;">
+            Retour à la connexion
+          </button>
+        </div>
+      </section>
+
       <section id="createAgent" class="page">
         <div class="hero-card">
           <div class="hero-title">Création d’un agent</div>

@@ -21,8 +21,16 @@ export function scrollToTop() {
  * @param {string} name - Nom de la section à afficher
  */
 export function showSection(name) {
-  Object.values(sections).forEach((section) => section?.classList.remove('active-page'));
-  sections[name]?.classList.add('active-page');
+  // Obtenir toutes les sections
+  const sectionIds = ['landing', 'createAgent', 'mainPage', 'competencesView'];
+  sectionIds.forEach((id) => {
+    const section = document.getElementById(id);
+    if (section) section.classList.remove('active-page');
+  });
+  
+  const targetSection = document.getElementById(name);
+  if (targetSection) targetSection.classList.add('active-page');
+  
   scrollToTop();
 
   // Cacher les boutons de navigation si on n'est pas sur la page principale
@@ -40,10 +48,11 @@ export function showSection(name) {
  * @param {number} [duration=2400] - Durée en ms
  */
 export function showToast(message, duration = 2400) {
-  if (!toast) return;
+  const toastEl = document.getElementById('toast');
+  if (!toastEl) return;
   
-  toast.textContent = message;
-  toast.classList.add('show');
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
   
   // Clear existing timeout
   if (showToast.timeout) {
@@ -51,7 +60,7 @@ export function showToast(message, duration = 2400) {
   }
   
   showToast.timeout = window.setTimeout(() => {
-    toast.classList.remove('show');
+    toastEl.classList.remove('show');
   }, duration);
 }
 
